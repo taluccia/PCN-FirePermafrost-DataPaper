@@ -1,0 +1,217 @@
+---
+title: "Figure Measured Predicted Air Temperature"
+author: "Anna Talucci"
+date: "2023-06-02"
+output: html_document
+---
+
+# clear environment
+```{r}
+rm(list=ls())
+```
+
+# Overview
+Figures looking at measured versus predicted
+
+
+# Packages
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(ggpubr)
+library(ggnewscale)
+```
+
+# Plot theme
+
+```{r}
+comp_theme = theme_light() + theme(legend.position = "none") +  
+  theme(panel.grid.major = element_blank()) +
+    theme(axis.title.y = element_text(size = 11, hjust = 0.5, vjust = 1.1),
+        axis.text.x = element_text(size = 10, color = "black"),
+        axis.text.y = element_text(size = 10, color = "black"),
+        axis.line = element_line(colour = "black"))
+```
+
+# Data
+
+## Temp
+
+```{r}
+temp = read_csv("../data/ERA5DataEE/2015ERA5DailyMeanT2M.csv")
+```
+
+## Datacube 
+
+```{r}
+datacube = read_csv("../data/dataCube/PermafrostFireDatacubeFinal.csv")
+```
+
+4-8	lutose_2000	5	thaw	msrDepth	19.0
+4-8	lutose_2000	5	thaw	predDepth	63.0
+RT3	YKD	15	active	msrDepth	97.0
+RT3	YKD	15	active	predDepth	100.0
+
+
+# Filter 
+
+## Data cube
+
+```{r}
+( samplePts = datacube %>% filter(siteId ==("lutose_2000")) %>% filter(plotId ==("4-8")) %>% filter(fireYr==2000) %>% filter(year==2015) )
+```
+```{r}
+( thawPt = samplePts %>% filter(msrType=="thaw") %>% dplyr::select(plotId, siteId, paired, msrType, msrDepth, predDepth, msrDoy, predDoy) %>%
+    pivot_longer(
+    cols = ends_with("Depth"),
+    names_to = "type",
+    values_to = "depth") %>% 
+    mutate(Doy = ifelse(type == "msrDepth", 161,
+                        ifelse(type == "predDepth", 285, 0))))
+
+( activePt = samplePts %>% filter(msrType=="active") %>% dplyr::select(plotId, siteId, paired, msrType, msrDepth, predDepth, msrDoy, predDoy) %>%
+    pivot_longer(
+    cols = ends_with("Depth"),
+    names_to = "type",
+    values_to = "depth") %>% 
+    mutate(Doy = ifelse(type == "msrDepth", 254,
+                        ifelse(type == "predDepth", 285, 0))))
+```
+
+
+## Temps
+```{r}
+names(temp)
+```
+```{r}
+( sampleTemps = temp %>% filter(siteId ==("lutose_2000")) %>% filter(plotId ==("4-8")) %>% filter(fireYr==2000) %>% filter(year==2015) )
+```
+
+# Functions to clean 
+```{r}
+selectColDf = function(x)  {
+  x %>%
+    dplyr::select(plotId, siteId, cntryId, lastNm, submtNm, lat, lon, year, month, day, biome, distur, fireYr, paired, gtProbe, hitRock, orgDpth, srfH2O, topoPos, slope, vegCvr, msrDoy, msrType, msrDpth, resBiomNm, resBiomeNm, resEcId, resId, resName, resRelm, permCmb, permCnt, permLnd, permaCd, prmExtn, prmRlct,  contains("temperature_2m")) %>%
+    mutate(id = row_number()) -> x
+  return(x)
+}
+```
+
+```{r}
+cleanDf = function(x)  {
+  x %>%
+  pivot_longer(
+    cols = contains("temperature_2m"),
+    names_to = "DateTemp",
+    values_to = "TempC",
+    values_drop_na = TRUE) %>% 
+  separate(DateTemp, c("tempDate", NA)) %>% 
+    mutate(plotId = as.character(plotId)) %>%
+    mutate(across(tempDate, ~ . |> str_extract("\\d+") |> as.character())) %>%
+    mutate(tempDate=ymd(tempDate)) %>%
+    mutate(TempDoy = yday(tempDate)) -> x
+  return(x)
+}
+```
+
+# Clean Temps
+
+```{r}
+( tempClean = sampleTemps %>% selectColDf() %>% cleanDf() )
+```
+```{r}
+( tempThaw = tempClean %>% filter(msrType == "thaw") )
+( tempActive = tempClean %>% filter(msrType == "active") )
+```
+
+# Figure out scaling
+
+```{r}
+min(tempThaw$TempC)
+max(tempThaw$TempC)
+```
+```{r}
+( scaleThawPt = thawPt %>% mutate(depthScale = depth/-2) )
+( scaleActivePt = activePt %>% mutate(depthScale = depth/-5) )
+```
+
+# Graphs
+
+```{r}
+( thawPlot = 
+    ggplot(tempThaw, mapping = aes(x = TempDoy, y = TempC)) + 
+    geom_line(color='#006D5B')+
+   scale_y_continuous(
+      name = (expression("Temperature " ( degree*C))), breaks = c(-35, -30,-15, 0, 15, 30), labels = c("","-30", "-15", "0", "15", "30"),
+      sec.axis = dup_axis( name="Depth (cm)", breaks=c(0,-15, -30, -35), labels = c("0","30", "60", ""))) +
+  geom_segment(aes(x = 161, y = 0, xend =161, yend = -17), color="black", size=1) +
+  geom_segment(aes(x = 285, y = 0, xend = 285, yend = -32.5), color="black", size=1) +
+    # Point1
+    new_scale_color() +
+    geom_point(data = scaleThawPt, aes(x=Doy, y=depthScale, fill=type, color=type),  size = 4, pch=21, stroke =1.8) +# 40
+          scale_fill_manual(name="", values=c( "#3b5a9d", "#FEC287FF"))  +
+          scale_color_manual(name="", values = c( "grey79", "black")) +
+
+    
+    xlab("Day of year") +
+    
+  theme_light() +
+    theme(legend.position = "none", plot.margin = margin(t=5, b=0, r=20, l=5, "mm")) +  
+
+    theme(axis.title.y = element_text(size = 10),
+          axis.title.x = element_text(size = 10),
+        axis.text.x = element_text(size = 9, color = "black"),
+        axis.text.y = element_text(size = 9, color = "black"))
+)
+```
+
+```{r}
+( activePlot = 
+    ggplot(tempActive, mapping = aes(x = TempDoy, y = TempC)) + 
+    geom_line(color='#006D5B')+
+   scale_y_continuous(
+      name = (expression("Temperature " ( degree*C))), breaks = c(-35, -30,-15, 0, 15, 30), labels = c("","-30", "-15", "0", "15", "30"),
+      sec.axis = dup_axis( name="Depth (cm)", breaks=c(0,-15, -30, -35), labels = c("0","75", "150", ""))) +
+  geom_segment(aes(x = 254, y = 0, xend =254, yend = -25.4), color="black", size=1) +
+  geom_segment(aes(x = 285, y = 0, xend = 285, yend = -26.6), color="black", size=1) +
+    # Point1
+    new_scale_color() +
+    geom_point(data = scaleActivePt, aes(x=Doy, y=depthScale, fill=type, color=type),  size = 4, pch=21, stroke =1.8) +# 40
+          scale_fill_manual(name="", values=c( "#3b5a9d", "#FEC287FF"))  +
+          scale_color_manual(name="", values = c( "grey79", "black")) +
+
+    
+    xlab("Day of year") +
+    
+  theme_light() +
+    theme(legend.position = c(.88, .83), 
+          plot.margin = margin(t=5, b=0, r=20, l=5, "mm"),
+          legend.margin =margin(r=1,l=1,t=1,b=1, "mm")) +  
+
+    theme(axis.title.y = element_text(size = 10),
+          axis.title.x = element_text(size = 10),
+        axis.text.x = element_text(size = 9, color = "black"),
+        axis.text.y = element_text(size = 9, color = "black"), 
+        legend.text=element_text(size=7)) +
+    guides(shape = guide_legend(override.aes = list(size = 1)))
+
+  ) 
+
+```
+
+
+
+
+
+# Combine
+
+
+```{r}
+( combineFig = cowplot::plot_grid(thawPlot, activePlot, ncol=1, labels = "AUTO") 
+  )
+```
+
+```{r}
+ggsave("../figures/TempMeasuredPredicted.png", plot = combineFig, width = 6, height =6, units = c("in"), dpi=600, bg = "white" )
+```

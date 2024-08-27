@@ -1,0 +1,172 @@
+---
+title: "Table 3 Caclulations"
+author: "Anna Talucci"
+date: "2024-08-16"
+output: html_document
+---
+
+# Overview
+Calculate each step for table 3
+
+
+# Packages
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(ggpubr)
+library(ggnewscale)
+```
+
+
+# Data
+
+## Temp
+
+```{r}
+temp = read_csv("../data/ERA5DataEE/2015ERA5DailyMeanT2M.csv")
+```
+
+## Datacube 
+
+```{r}
+datacube = read_csv("../data/dataCube/PermafrostFireDatacubeFinal.csv")
+```
+
+
+# Filter 
+
+## Data cube
+
+```{r}
+( samplePts = datacube %>% filter(siteId ==("lutose_2000")) %>% filter(plotId ==("4-8")) %>% filter(fireYr==2000) %>% filter(year==2015) )
+```
+
+```{r}
+( thawPt = samplePts %>% filter(msrType=="thaw") %>% dplyr::select(plotId, siteId, paired, msrType, msrDepth, predDepth, msrDoy, predDoy) %>%
+    pivot_longer(
+    cols = ends_with("Depth"),
+    names_to = "type",
+    values_to = "depth") %>% 
+    mutate(Doy = ifelse(type == "msrDepth", 161,
+                        ifelse(type == "predDepth", 285, 0))))
+
+( activePt = samplePts %>% filter(msrType=="active") %>% dplyr::select(plotId, siteId, paired, msrType, msrDepth, predDepth, msrDoy, predDoy) %>%
+    pivot_longer(
+    cols = ends_with("Depth"),
+    names_to = "type",
+    values_to = "depth") %>% 
+    mutate(Doy = ifelse(type == "msrDepth", 254,
+                        ifelse(type == "predDepth", 285, 0))))
+```
+
+## Temps
+
+```{r}
+( sampleTemps = temp %>% filter(siteId ==("lutose_2000")) %>% filter(plotId ==("4-8")) %>% filter(fireYr==2000) %>% filter(year==2015) )
+```
+```{r}
+selectColDf = function(x)  {
+  x %>%
+    dplyr::select(plotId, siteId, cntryId, lastNm, submtNm, lat, lon, year, month, day, biome, distur, fireYr, paired, gtProbe, hitRock, orgDpth, srfH2O, topoPos, slope, vegCvr, msrDoy, msrType, msrDpth, resBiomNm, resBiomeNm, resEcId, resId, resName, resRelm, permCmb, permCnt, permLnd, permaCd, prmExtn, prmRlct,  contains("temperature_2m")) %>%
+    mutate(id = row_number()) -> x
+  return(x)
+}
+```
+
+```{r}
+cleanDf = function(x)  {
+  x %>%
+  pivot_longer(
+    cols = contains("temperature_2m"),
+    names_to = "DateTemp",
+    values_to = "TempC",
+    values_drop_na = TRUE) %>% 
+  separate(DateTemp, c("tempDate", NA)) %>% 
+    mutate(plotId = as.character(plotId)) %>%
+    mutate(across(tempDate, ~ . |> str_extract("\\d+") |> as.character())) %>%
+    mutate(tempDate=ymd(tempDate)) %>%
+    mutate(TempDoy = yday(tempDate)) -> x
+  return(x)
+}
+```
+
+# Clean Temps
+
+```{r}
+( tempClean = sampleTemps %>% selectColDf() %>% cleanDf() )
+```
+
+# Function to Identify ALT date for prediction
+
+```{r}
+idAltDateFun = function(x)  {
+  x %>%
+  arrange(id, tempDate) %>%
+  group_by(id) %>%
+  mutate(RollMean = zoo::rollmean(TempC, k = 5, fill = NA)) %>% 
+    filter(TempDoy>=200)  %>%
+    ungroup() %>%
+    filter(RollMean <=0) %>%
+    group_by(lastNm, plotId, siteId, year) %>% # regroup by last name, plot id, and site id
+  #filter(site_id== "DFTB") %>%
+    arrange(TempDoy) %>% # sort by date of temp measures
+  mutate(TempDoy_diff = TempDoy - lag(TempDoy)) %>%
+  filter(TempDoy_diff >= 1) %>%
+  summarize(minDate = min(TempDoy),
+            meanDate = mean(TempDoy),
+            maxDate = max(TempDoy)) %>%
+    ungroup() -> x
+  return(x)
+}
+```
+
+## Identify ALT date
+
+```{r}
+( idAltDate = idAltDateFun(tempClean) )
+```
+
+
+# Calculations steps
+
+```{r}
+calc_A = function(x) {
+  x %>% 
+    group_by(year, id, lastNm, msrDoy) %>%
+    filter(TempDoy < msrDoy) %>%
+  filter(TempC > 0) %>%
+    arrange(TempDoy) %>%
+  summarize( 
+  A_sum = sum(TempC),
+  A = sqrt(A_sum)) -> x
+  return(x)
+}
+
+```
+
+
+```{r}
+
+calc_B = function(x) {
+  x %>% 
+    group_by(year, id, lastNm, msrDoy) %>%
+    filter(TempDoy < predDoy) %>%
+  filter(TempC > 0) %>%
+    arrange(TempDoy) %>%
+  summarize( 
+  B_sum = sum(TempC),
+  B = sqrt(B_sum)) -> x
+  return(x)
+ }
+```
+
+### Calculate A & B
+
+```{r}
+( calc_A_data = calc_A(tempClean) )
+```
+
+```{r}
+( calc_B_data = calc_B(tempClean) )
+```
