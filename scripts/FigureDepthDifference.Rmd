@@ -1,0 +1,133 @@
+---
+title: "Figure Depth Difference"
+author: "Anna Talucci"
+date: "2024-09-16"
+output: html_document
+---
+
+# clear environment
+```{r}
+rm(list=ls())
+```
+
+# Overview
+Figures looking at measured versus predicted
+
+
+# Packages
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(ggpubr)
+library(ggnewscale)
+library(ggthemes)
+```
+
+# Plot themes
+```{r}
+comp_theme = theme_bw() + theme(legend.position = "bottom") +  
+  theme(panel.grid.major = element_blank()) +
+    theme(axis.title.y = element_text(size = 11, hjust = 0.5, vjust = 1.1),
+        axis.text.x = element_text(size = 10, color = "black"),
+        axis.text.y = element_text(size = 10, color = "black"))
+```
+
+# Data
+
+## Predicted measurements
+
+```{r}
+datacubePred = read_csv("../data/dataCube/PermafrostFireDatacubeFinal.csv")
+```
+
+```{r}
+datacubePred
+```
+
+# Depth difference by biome and permafrost extent
+
+```{r}
+( aggregateUnburnedB = datacubePred %>% 
+    drop_na(paired) %>%
+    filter(distur =="unburned") %>%
+  group_by(resBiome, distur, permaExtent, tsf) %>%
+  summarise(n = n(),
+            mean = mean(predDepth),
+            sd   = sd(predDepth, na.rm=TRUE),
+            se   = sd / sqrt(n))  %>%
+    dplyr::select(resBiome:tsf, mean, se) %>%
+  rename(mean_unburned = mean, se_unburned = se, disturUnburn = distur)
+)
+```
+
+```{r}
+( aggregateBurnedB = datacubePred %>% 
+    drop_na(paired) %>%
+    filter(distur =="burned") %>%
+  group_by(resBiome, distur, permaExtent, tsfClass) %>%
+  summarise(n = n(),
+            mean = mean(predDepth),
+            sd   = sd(predDepth, na.rm=TRUE),
+            se   = sd / sqrt(n))  %>%
+    dplyr::select(resBiome:tsfClass, mean, se) %>%
+  rename(mean_burned = mean, se_burned = se, disturBurn = distur) 
+)
+```
+
+```{r}
+( depthChangeBiome = aggregateBurnedB %>% 
+    left_join(aggregateUnburnedB, by=c("resBiome", "permaExtent")) %>%
+  drop_na(disturUnburn) %>%
+  mutate(depthChange = mean_burned-mean_unburned) 
+)
+```
+
+```{r}
+depthChangeBiome$tsfClass = factor(depthChangeBiome$tsfClass, levels = c( "unburned", "0-3", "4-10", "11-20", "21-40", ">40"))
+```
+
+# By Ecozone
+
+# By Biome
+```{r}
+( plotDepthChangeBiome = ggplot(depthChangeBiome, aes(x = tsfClass, y=depthChange)) +
+  geom_hline(yintercept=0, color="gray", size = 3, alpha = .5) + 
+   geom_point(color='#5e4fa2', size = 3, shape = 21) +
+
+      #scale_color_manual(values=c('#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02','#a6761d'), name="") +
+  scale_y_reverse() +
+    geom_errorbar(aes(ymin = ymin,ymax = ymax)) +
+  labs(x="Time since fire", y="Difference in depth (cm)") +
+     #facet_grid(vars(resBiome), vars(permaExtent), scales="free") +
+  facet_wrap(~resBiome + permaExtent, scales = "free") +
+  comp_theme +
+    theme(legend.position = "none",
+          axis.text.y = element_text(size=5),
+          axis.text.x = element_text(size=5, angle=45),
+          strip.background = element_rect( color="white", fill="white", size=1.5, linetype="solid" )) +
+    theme(strip.text.x = element_text(size = 6))
+)
+```
+
+```{r}
+( plotDepthChange = ggplot(depthDifference, aes(x = tsfClass, y=depthDifference)) +
+  geom_hline(yintercept=0, color="gray", size = 3, alpha = .5) + 
+   geom_point(color='#5e4fa2', size = 3, shape = 21) +
+
+      #scale_color_manual(values=c('#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02','#a6761d'), name="") +
+  scale_y_reverse() +
+  labs(x="Time since fire Class", y="Difference in depth (cm)") +
+  facet_wrap(~resName, scales = "free") +
+  comp_theme +
+    theme(legend.position = "none",
+          axis.text.y = element_text(size=5),
+          axis.text.x = element_text(size=5, angle=45),
+          strip.background = element_rect( color="white", fill="white", size=1.5, linetype="solid" )) +
+    theme(strip.text.x = element_text(size = 6))
+)
+```
+
+```{r eval=FALSE, include=FALSE}
+ggsave("../figures/AggregateDepthChangeTsfEcozone.png", plot = plotDepthChange,  width = 6, height =5, units = c("in"), dpi=600, bg = "white" )
+```

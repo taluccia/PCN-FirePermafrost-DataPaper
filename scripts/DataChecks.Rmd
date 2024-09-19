@@ -1,0 +1,62 @@
+---
+title: "Data Checks"
+author: "Anna Talucci"
+date: "2024-09-13"
+output: html_document
+---
+
+# Overview
+
+Data checks
+
+
+# Packages
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(ggpubr)
+library(ggnewscale)
+```
+
+# Data
+
+## Predicted measurements
+```{r}
+datacube = read_csv("../data/dataCube/PermafrostFireDatacubeFinal.csv")
+```
+
+```{r}
+datacube
+```
+
+# Check Olefeldt fire years
+
+```{r}
+olefeldt = datacube %>% filter(submitNm=="Olefeldt") 
+sort(unique(olefeldt$fireYr))
+```
+
+# Check fire year ranges
+
+```{r}
+min(datacube$fireYr)
+max(datacube$fireYr)
+sort(unique(datacube$fireYr))
+```
+
+# Probe values over 110
+
+```{r}
+max(datacube$msrDepth)
+```
+
+```{r}
+( gt150 = datacube %>% filter(msrDepth>150) )
+
+unique(gt150$submitNm)
+```
+
+```{r}
+datacube %>% filter(msrDepth>250)
+```
