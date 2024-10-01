@@ -1,0 +1,81 @@
+---
+title: "Pair Distance Estimate"
+author: "Anna Talucci"
+date: "2024-09-25"
+output: html_document
+---
+
+# Overview
+
+Data checks
+
+
+# Packages
+
+```{r}
+library(tidyverse)
+library(geosphere)
+library(proxy)
+library(sf)
+
+```
+
+# Data
+
+## Predicted measurements
+```{r}
+datacube = read_csv("../data/dataCube/PermafrostFireDatacubeFinal.csv")
+```
+
+# Projection
+[Some projection info]https://nsidc.org/data/user-resources/help-center/guide-nsidcs-polar-stereographic-projection)
+```{r}
+polarProj = "+proj=stere +lat_0=90 +lat_ts=70 +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +type=crs"
+```
+
+
+# Function to make points
+```{r}
+df_to_sf <- function(x){
+  st_as_sf(x, coords = c("lon","lat"), crs = 4326, remove = FALSE)
+}
+```
+
+# points
+
+```{r}
+pts = datacube %>% df_to_sf()
+```
+
+# Group and estimate distance
+
+
+```{r}
+Loranty = pts %>% 
+    #filter(submitNm=='Loranty') %>%
+  group_by(paired, distur) %>%
+    st_distance()
+
+```
+
+```{r}
+(df = as.data.frame(Loranty))
+```
+```{r}
+df %>% filter_at(all_vars(), all_vars(!=0))
+```
+locations <- locations %>%
+    mutate(
+        dist = geosphere::distHaversine(cbind(homelong, homelat), cbind(worklong, worklat))
+    )
+
+locations
+```{r}
+datacube %>% 
+  filter(submitNm=="Delcourt") %>% 
+  group_by(paired, distur) %>% 
+  dplyr::select(paired, distur, lat, lon) %>%
+  group_map(~ data.frame(avg=mean(proxy::dist(.x[ , c("lon", "lat")], method="haversine"))))
+
+  
+```
