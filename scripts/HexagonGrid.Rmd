@@ -1,0 +1,112 @@
+---
+title: "Create Hexagon Grid"
+author: "Anna Talucci"
+date: "2024-10-22"
+output: html_document
+---
+# Overview 
+Create Hexagon Grid for cummulative area burned
+
+
+# Packages
+```{r}
+library(sf)
+library(dplyr)
+library(mapview)
+library(tmap)
+```
+## Burn area points
+```{r}
+points = st_read("../outputs/BurnedAreaPoints2002-2022.gpkg")
+```
+
+## Resolve Polygons
+
+```{r}
+resolve = st_read("../data/spatialData/RESOLVE_Ecoregions_and_Biomes/Biomes_and_Ecoregions_2017.shp", "Biomes_and_Ecoregions_2017")
+```
+
+
+# Subset vector data
+```{r eval=FALSE, include=FALSE}
+resTarget = c( "Arctic foothills tundra", "Beringia lowland tundra",  "Beringia upland tundra", "Chukchi Peninsula tundra", "East Siberian taiga", "Interior Alaska-Yukon lowland taiga", "Interior Yukon-Alaska alpine tundra", "Muskwa-Slave Lake taiga", "Northeast Siberian taiga", "Northern Canadian Shield taiga",      "Northwest Territories taiga", "Yamal-Gydan tundra")
+```
+
+```{r eval=FALSE, include=FALSE}
+( resolve1 = resolve %>% filter(ECO_NAME %in% resTarget) )
+```
+
+```{r}
+( nh = resolve %>% filter(REALM %in% c("Palearctic", "Nearctic")) )
+```
+
+```{r eval=FALSE, include=FALSE}
+( russia_eco = resolve %>% filter(REALM=="Palearctic") )
+( na_eco = resolve %>% filter(REALM == "Nearctic") )
+```
+```{r}
+pts_realm = st_join(st_make_valid(points), nh)
+```
+
+```{r}
+head(pts_realm)
+```
+
+# Split points into nearctic and palarctic
+
+```{r}
+( russia_eco = pts_realm %>% filter(REALM=="Palearctic") )
+( na_eco = pts_realm %>% filter(REALM == "Nearctic") )
+```
+
+```{r eval=FALSE, include=FALSE}
+mapview_test_points = mapview(points, cex = 3, alpha = .5, popup = NULL)
+
+mapview_test_points
+```
+
+# Map honeycomb
+
+```{r}
+area_honeycomb_grid = st_make_grid(st_make_valid(points), cellsize = c(1000, 1000), what = "polygons", square = FALSE)
+
+# To sf and add grid ID
+honeycomb_grid_sf = st_sf(area_honeycomb_grid) %>%
+  # add grid ID
+  mutate(grid_id = 1:length(lengths(area_honeycomb_grid)))
+```
+
+```{r}
+# count number of points in each grid
+# https://gis.stackexchange.com/questions/323698/counting-points-in-polygons-with-sf-package-of-r
+honeycomb_grid_sf$n_colli = lengths(st_intersects(st_make_valid(honeycomb_grid_sf), st_make_valid(points)))
+```
+
+```{r}
+# remove grid without value of 0 (i.e. no points in side that grid)
+honeycomb_count = filter(honeycomb_grid_sf, n_colli > 0)
+```
+
+```{r}
+tmap_mode("view")
+
+map_honeycomb = tm_shape(honeycomb_count) +
+  tm_fill(
+    col = "n_colli",
+    palette = "Reds",
+    style = "cont",
+    title = "Number of collisions",
+    id = "grid_id",
+    showNA = FALSE,
+    alpha = 0.6,
+    popup.vars = c(
+      "Number of collisions: " = "n_colli"
+    ),
+    popup.format = list(
+      n_colli = list(format = "f", digits = 0)
+    )
+  ) +
+  tm_borders(col = "grey40", lwd = 0.7)
+
+map_honeycomb
+```

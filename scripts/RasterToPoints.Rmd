@@ -1,0 +1,167 @@
+---
+title: "Raster to points"
+author: "Anna Talucci"
+date: "2024-10-22"
+output: html_document
+---
+# overview
+
+Raster to points
+
+# raster data
+
+```{r}
+f <- list.files("../data/abba", ".tif$", full.names = TRUE)
+```
+
+```{r}
+f
+```
+
+```{r}
+# list of rast objects
+r_list <- lapply(filelist, rast)
+```
+
+
+```{r}
+f2002 <- rast(f[1]) 
+```
+
+```{r}
+f2003 <- rast(f[2]) 
+f2004 <- rast(f[3]) 
+f2005 <- rast(f[4]) 
+f2006 <- rast(f[5]) 
+f2007 <- rast(f[6]) 
+f2008 <- rast(f[7]) 
+f2009 <- rast(f[8]) 
+f2010 <- rast(f[9]) 
+f2011 <- rast(f[10]) 
+f2012 <- rast(f[11]) 
+f2013 <- rast(f[12]) 
+f2014 <- rast(f[13]) 
+f2015 <- rast(f[14]) 
+f2016 <- rast(f[15]) 
+f2017 <- rast(f[16]) 
+f2018 <- rast(f[17]) 
+f2019 <- rast(f[18]) 
+f2020 <- rast(f[19])
+f2021 <- rast(f[20])
+f2022 <- rast(f[21])
+```
+# Function
+```{r}
+toPoints = function(x)  {
+  x %>%
+    st_as_sf(., as_points=TRUE, merge=FALSE)-> x
+  return(x)
+}
+```
+
+# projection
+```{r}
+lonlat <- '+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0' 
+```
+
+## reproject
+
+```{r}
+wgs2002 <- terra::project(f2002, lonlat)
+```
+```{r}
+plot(wgs2002)
+```
+
+```{r}
+wgs2003 <- terra::project(f2003, lonlat)
+wgs2004 <- terra::project(f2004, lonlat)
+wgs2005 <- terra::project(f2005, lonlat)
+wgs2006 <- terra::project(f2006, lonlat)
+wgs2007 <- terra::project(f2007, lonlat)
+wgs2008 <- terra::project(f2008, lonlat)
+wgs2009 <- terra::project(f2009, lonlat)
+wgs2010 <- terra::project(f2010, lonlat)
+wgs2011 <- terra::project(f2011, lonlat)
+wgs2012 <- terra::project(f2012, lonlat)
+wgs2013 <- terra::project(f2013, lonlat)
+wgs2014 <- terra::project(f2014, lonlat)
+wgs2015 <- terra::project(f2015, lonlat)
+wgs2016 <- terra::project(f2016, lonlat)
+wgs2017 <- terra::project(f2017, lonlat)
+wgs2018 <- terra::project(f2018, lonlat)
+wgs2019 <- terra::project(f2019, lonlat)
+wgs2020 <- terra::project(f2020, lonlat)
+wgs2021 <- terra::project(f2021, lonlat)
+wgs2022 <- terra::project(f2022, lonlat)
+```
+
+```{r}
+( pt2002 = as.points(wgs2002) )
+```
+
+```{r}
+pt2003 = as.points(wgs2003)
+pt2004 = as.points(wgs2004)
+pt2005 = as.points(wgs2005)
+pt2006 = as.points(wgs2006)
+pt2007 = as.points(wgs2007)
+pt2008 = as.points(wgs2008)
+pt2009 = as.points(wgs2009)
+pt2010 = as.points(wgs2010)
+pt2011 = as.points(wgs2011)
+pt2012 = as.points(wgs2012)
+pt2013 = as.points(wgs2013)
+pt2014 = as.points(wgs2014)
+pt2015 = as.points(wgs2015)
+pt2016 = as.points(wgs2016)
+pt2017 = as.points(wgs2017)
+pt2018 = as.points(wgs2018)
+pt2019 = as.points(wgs2019)
+pt2020 = as.points(wgs2020)
+pt2021 = as.points(wgs2021)
+pt2022 = as.points(wgs2022)
+```
+
+# add attribute 
+Area, year
+
+```{r}
+( sf2002 <- pt2002 %>% sf::st_as_sf() %>% mutate(area = 436,
+                                               units = "m",
+                                               year = 2002) )
+```
+```{r}
+sf2003 <- pt2003 %>% sf::st_as_sf() %>% mutate(area = 436, units = "m", year = 2003)
+sf2004 <- pt2004 %>% sf::st_as_sf() %>% mutate(area = 436, units = "m", year = 2004)
+sf2005 <- pt2005 %>% sf::st_as_sf() %>% mutate(area = 436, units = "m", year = 2005)
+sf2006 <- pt2006 %>% sf::st_as_sf() %>% mutate(area = 436, units = "m", year = 2006)
+sf2007 <- pt2007 %>% sf::st_as_sf() %>% mutate(area = 436, units = "m", year = 2007)
+sf2008 <- pt2008 %>% sf::st_as_sf() %>% mutate(area = 436, units = "m", year = 2008)
+sf2009 <- pt2009 %>% sf::st_as_sf() %>% mutate(area = 436, units = "m", year = 2009)
+sf2010 <- pt2010 %>% sf::st_as_sf() %>% mutate(area = 436, units = "m", year = 2010)
+sf2011 <- pt2011 %>% sf::st_as_sf() %>% mutate(area = 436, units = "m", year = 2011)
+sf2012 <- pt2012 %>% sf::st_as_sf() %>% mutate(area = 436, units = "m", year = 2012)
+sf2013 <- pt2013 %>% sf::st_as_sf() %>% mutate(area = 436, units = "m", year = 2013)
+sf2014 <- pt2014 %>% sf::st_as_sf() %>% mutate(area = 436, units = "m", year = 2014)
+sf2015 <- pt2015 %>% sf::st_as_sf() %>% mutate(area = 436, units = "m", year = 2015)
+sf2016 <- pt2016 %>% sf::st_as_sf() %>% mutate(area = 436, units = "m", year = 2016)
+sf2017 <- pt2017 %>% sf::st_as_sf() %>% mutate(area = 436, units = "m", year = 2017)
+sf2018 <- pt2018 %>% sf::st_as_sf() %>% mutate(area = 436, units = "m", year = 2018)
+sf2019 <- pt2019 %>% sf::st_as_sf() %>% mutate(area = 436, units = "m", year = 2019)
+sf2020 <- pt2020 %>% sf::st_as_sf() %>% mutate(area = 436, units = "m", year = 2020)
+sf2021 <- pt2021 %>% sf::st_as_sf() %>% mutate(area = 436, units = "m", year = 2021)
+sf2022 <- pt2022 %>% sf::st_as_sf() %>% mutate(area = 436, units = "m", year = 2022)
+
+
+```
+
+# Combine all points
+
+```{r}
+points = bind_rows(sf2002, sf2003, sf2004, sf2005, sf2006, sf2007, sf2008, sf2009, sf2010, sf2011, sf2012, sf2013, sf2014, sf2015, sf2016, sf2017, sf2018, sf2019, sf2020, sf2021, sf2022)
+```
+
+```{r}
+st_write(points, "../outputs/BurnedAreaPoints2002-2022.gpkg")
+```

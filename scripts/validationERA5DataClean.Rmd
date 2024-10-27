@@ -1,0 +1,184 @@
+---
+title: "Validation ERA5 Land Clean"
+author: "Anna Talucci"
+date: "2024-09-20"
+output: html_document
+---
+
+
+
+
+# clear environment
+```{r}
+rm(list=ls())
+```
+
+# Overview
+
+Take extracted ERA 5 data from google earth engine...
+
+ERA5 Land data was extract by year
+# Packages
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(sf)
+library(data.table)
+```
+
+
+
+# Data
+
+## vector of data files
+```{r}
+f <- list.files(path = "../data/ERA5Validation/",
+                pattern = "*.csv", full.names = TRUE)
+```
+
+```{r}
+f
+```
+
+## Holloway
+```{r}
+f2015 <- read.csv(f[1], header = TRUE) 
+f2016 <- read.csv(f[2], header = TRUE) 
+f2023 <- read.csv(f[3], header = TRUE) 
+```
+
+```{r}
+names(f2015)
+```
+
+
+
+
+## Process
+1. pivot longer so column of temperature and date
+2. Group by site_id
+3. Select dates after day of thaw measurement
+4. Select only rows with temp above 0 (zero)
+5. Apply calculation
+
+ 
+
+# Functions to clean 
+
+```{r}
+selectColDf = function(x)  {
+  x %>%
+    dplyr::select(EXTENT:year,  contains("temperature_2m")) %>%
+    mutate(id = row_number()) -> x
+  return(x)
+}
+```
+
+```{r}
+cleanDf = function(x)  {
+  x %>%
+  pivot_longer(
+    cols = starts_with("X"),
+    names_to = "DateTemp",
+    values_to = "TempC",
+    values_drop_na = TRUE) %>% 
+  separate(DateTemp, c("tempDate", NA)) %>% 
+    mutate(across(tempDate, ~ . |> str_extract("\\d+") |> as.character())) %>%
+    mutate(tempDate=ymd(tempDate)) %>%
+    mutate(TempDoy = yday(tempDate)) -> x
+  return(x)
+}
+```
+
+
+##  Apply functions to to each year
+
+### Select Column Function
+
+```{r}
+(df2015 = f2015 %>% selectColDf() )
+(df2016 = f2016 %>% selectColDf() )
+(df2023 = f2023 %>% selectColDf() )
+```
+
+
+
+### Clean function
+
+Note: the warning is referencing parts of the name being discarded in the separate process. This can be ignored for these chunks of code.
+
+```{r}
+( clean2015 = df2015 %>% cleanDf() )
+( clean2016 = df2016 %>% cleanDf() )
+( clean2023 = df2023 %>% cleanDf() )
+```
+
+
+# Function to Identify ALT date for prediction
+
+```{r}
+idAltDateFun = function(x)  {
+  x %>%
+  arrange(id, tempDate) %>%
+  group_by(id) %>%
+  mutate(RollMean = zoo::rollmean(TempC, k = 5, fill = NA)) %>% 
+    filter(TempDoy>=200)  %>%
+    ungroup() %>%
+    filter(RollMean <=0) %>%
+    group_by(site, plot, year, month, day) %>% 
+    arrange(TempDoy) %>% # sort by date of temp measures
+  mutate(TempDoy_diff = TempDoy - lag(TempDoy)) %>%
+  filter(TempDoy_diff >= 1) %>%
+  summarize(minDate = min(TempDoy),
+            meanDate = mean(TempDoy),
+            maxDate = max(TempDoy)) %>%
+    ungroup() -> x
+  return(x)
+}
+```
+
+## Identify ALT date
+
+```{r}
+(rm2015 = clean2015 %>% idAltDateFun())
+(rm2016 = clean2016 %>% idAltDateFun())
+(rm2023 = clean2023 %>% idAltDateFun())
+```
+
+
+
+## Combine Df together
+
+```{r}
+combine2015 = merge(clean2015, rm2015[, c('site', 'plot', 'year', 'month', 'day', 'minDate')], by = c('site', 'plot', 'year', 'month', 'day'), all.x=TRUE) %>% mutate(plot=as.character(plot))
+combine2016 = merge(clean2016, rm2016[, c('site', 'plot', 'year', 'month', 'day', 'minDate')], by = c('site', 'plot', 'year', 'month', 'day'), all.x=TRUE) %>% mutate(plot=as.character(plot))
+combine2023 = merge(clean2023, rm2023[, c('site', 'plot', 'year', 'month', 'day', 'minDate')], by = c('site', 'plot', 'year', 'month', 'day'), all.x=TRUE) %>% mutate(plot=as.character(plot))
+```
+
+```{r}
+combine2015
+```
+
+# Bind clean 
+
+Combine yearly data frames; rename columns that were truncated by EE. 
+
+```{r}
+( combineAll = dplyr::bind_rows(combine2015, combine2016, combine2023) %>%
+  mutate(predDoy1 = minDate-14) )
+```
+
+
+```{r}
+names(combineAll)
+```
+
+# write to csv
+
+```{r}
+write.csv(combineAll,file = "../outputs/era5Clean/ValidationDataHollowayBreenERA5.csv", row.names = FALSE)
+```
+
+
+

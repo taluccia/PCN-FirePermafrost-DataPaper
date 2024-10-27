@@ -1,0 +1,763 @@
+---
+title: "validation quantify uncertainty"
+author: "Anna Talucci"
+date: "2024-09-20"
+output: html_document
+---
+
+# clear environment
+
+```{r}
+rm(list=ls())
+```
+
+# Overview
+
+validation quantify uncertainty
+
+
+# Packages
+
+```{r}
+library(tidyverse)
+library(ggpubr)
+library(ggnewscale)
+library(ggthemes)
+library(ggpmisc)
+library(cowplot)
+library(Metrics) 
+library(sf)
+library(scales)
+```
+# Plot themes
+
+```{r}
+comp_theme = theme_bw() +  
+  theme(panel.grid.major = element_blank()) +
+    theme(axis.title.y = element_text(size = 10, hjust = 0.5, vjust = 1.1),
+          axis.title.x = element_text(size = 10, hjust = 0.5, vjust = 1.1),
+        axis.text.x = element_text(size = 9, color = "black"),
+        axis.text.y = element_text(size = 9, color = "black"))
+```
+
+
+# Data
+
+```{r}
+data = read_csv("../outputs/validationPredict/validationPredictHollowayBreen.csv")
+```
+
+
+```{r}
+data
+```
+```{r}
+unique(data$plot)
+```
+
+```{r}
+unique(data$site)
+```
+
+```{r}
+data$site[data$site == "Delome River"] <- "DR"
+data$site[data$site == "Garfield Creek"] <- "GC"
+data$site[data$site == "Mingvk Lake"] <- "ML"
+data$site[data$site == "Milepost 85"] <- "MP85"
+data$site[data$site == "Milepost 86"] <- "MP86"
+data$site[data$site == "Unburned; Mile 80"] <- "UbMp80"
+```
+
+```{r}
+unique(data$site)
+```
+
+# Split by Early and late
+
+```{r}
+( early = data %>% 
+    filter(msrType=="thaw") %>%
+    dplyr::select(-A_sum, -A, -B_sum, -B, -C, -resName, -resBmNm))
+( late = data %>% 
+    filter(msrType=="active") %>% 
+    dplyr::select(site:year, msrDpth, dateGrp, resName, resBmNm) %>%
+    rename(msrDepthLate = msrDpth))
+```
+
+"b1"     "b12"    "b13"    "b15"    "b16"    "b5"     "b8"     "b9"     "UB3"    "b14"    "UB2"   
+[12] "DR"     "GC"     "MP85"   "MP86"   "ML"     "UbMp80"
+
+# Validation Data
+
+
+
+```{r}
+( valData = early %>% 
+    full_join(., late, by=c("site", "plot", "dateGrp", "year")) %>%
+    mutate(disturbance = ifelse(site %in% c("UB2", "UB3", "UbMp80"), "unburned", "burned")) %>%
+    mutate(residualError = msrDepthLate - predDepth) %>% 
+    mutate(relativeError = (msrDepthLate - predDepth) / msrDepthLate * 100) %>% 
+    mutate(bias1 = predDepth-msrDepthLate) %>%
+    mutate(rmseTop = (predDepth-msrDepthLate)^2) %>%
+    drop_na(msrDepthLate) %>% 
+    drop_na(predDepth) 
+)
+```
+
+```{r}
+sum(valData$bias1)/651
+```
+
+```{r}
+names(valData)
+```
+
+
+### Summarize
+```{r}
+valData %>% 
+  group_by(resBmNm, disturbance, lastNm) %>%
+  summarise(meanResidualError = mean(residualError),
+            meanPercentError = mean(relativeError),
+            biasSum = sum(bias1),
+            n=n(),
+            correlation = cor(msrDepthLate, predDepth), 
+            rmseSum = sum(rmseTop)) %>%  
+  mutate(bias = biasSum/n,
+         rmse = sqrt(rmseSum/n)) %>%
+  drop_na(meanResidualError) %>%
+  dplyr::select(resBmNm:lastNm, bias, rmse, correlation, n)
+
+```
+
+```{r}
+unburnTundra = valData %>% filter(disturbance == "unburned") %>% filter(resBmNm == "Tundra")
+burnTundra = valData %>% filter(disturbance == "burned") %>% filter(resBmNm == "Tundra")
+unburnBoreal = valData %>% filter(disturbance == "unburned") %>% filter(resBmNm == "Boreal Forests/Taiga")
+( burnBoreal = valData %>% filter(disturbance == "burned") %>% filter(resBmNm == "Boreal Forests/Taiga") %>% drop_na(predDepth) )
+```
+```{r}
+model_unburnTundra = lm(predDepth ~ msrDepthLate, data = unburnTundra) 
+model_burnTundra = lm(predDepth ~ msrDepthLate, data = burnTundra)
+model_unburnBoreal = lm(predDepth ~ msrDepthLate, data = unburnBoreal) 
+model_burnBoreal = lm(predDepth ~ msrDepthLate, data = burnBoreal)
+```
+
+```{r}
+summary(model_unburnTundra)
+summary(model_burnTundra)
+summary(model_unburnBoreal)
+summary(model_burnBoreal)
+```
+
+
+# Plots
+
+## unburned
+color="#3d5a80"
+```{r}
+(unburned = valData %>% filter(disturbance=="unburned") %>% drop_na(msrDepthLate) %>% drop_na(predDepth) )
+```
+```{r}
+max(unburned$predDepth)
+max(unburned$msrDepthLate)
+min(unburned$predDepth)
+min(unburned$msrDepthLate)
+```
+
+```{r}
+( observPredPlotUnburned = ggplot(unburned, aes(x=msrDepthLate, y=predDepth)) +
+  geom_abline (slope=1, intercept = 0, linetype = "solid", color="#f7aa58")+
+    geom_point(size =1, shape=1, aes(color=resBmNm)) +
+    scale_color_manual(values=c('#59a89c', '#a559aa'), name="Biome", labels=c("Boreal", "Tundra")) +
+  #stat_poly_eq() +
+  #stat_poly_line() +
+    xlim(29, 170) + ylim(29, 170) +
+ comp_theme +
+   theme(legend.position = "none") + 
+   labs(x= "Observed active layer thickness (cm)", y="Estimated active\nlayer thickness (cm)", title="Unburned") +
+   theme(title = element_text(size = 10), 
+         axis.title.y = element_text(size = 9),
+        axis.text.x = element_text(size = 8, color = "black"),
+        axis.text.y = element_text(size = 8, color = "black"))
+)
+```
+
+## Burned
+```{r}
+(burned = valData %>% filter(disturbance=="burned") %>% drop_na(msrDepthLate) %>% drop_na(predDepth) )
+```
+```{r}
+max(burned$predDepth)
+max(burned$msrDepthLate)
+min(burned$predDepth)
+min(burned$msrDepthLate)
+```
+```{r}
+( observPredPlotBurned = ggplot(burned, aes(x=msrDepthLate, y=predDepth)) +
+  geom_abline (slope=1, intercept = 0, linetype = "solid", color="#f7aa58")+
+   geom_point(size = 1, shape=1, aes(color=resBmNm)) +
+    scale_color_manual(values=c('#59a89c', '#a559aa'), name="Biome", labels=c("Boreal", "Tundra")) +
+  #stat_poly_eq() +
+  #stat_poly_line() +
+    xlim(25, 212) + ylim(25, 212) +
+ comp_theme +
+   theme(legend.position = "none") + 
+   labs(x= "Observed active layer thickness (cm)", y="Estimated active\nlayer thickness (cm)", title="Burned") +
+   theme(title = element_text(size = 10), 
+         axis.title.y = element_text(size = 9),
+        axis.text.x = element_text(size = 8, color = "black"),
+        axis.text.y = element_text(size = 8, color = "black"))
+)
+```
+
+## All data plot
+
+
+```{r}
+( residualErrorPlot = ggplot(valData, aes(x=site, y=bias1)) +
+  geom_hline(yintercept=0, color="gray", size = 3, alpha = .5) +
+    geom_boxplot( linewidth = .3, outlier.shape = NA, aes(color=resBmNm)) + #, size = 3, shape = 21
+  geom_jitter( size = 1, shape = 21, aes(color=resBmNm)) +
+  #geom_point(size =1, shape=1, aes(color=resBmNm)) +
+    scale_color_manual(values=c('#59a89c', '#a559aa'), name="Biome", labels=c("Boreal", "Tundra")) +
+    stat_summary(fun=mean, geom="point", shape=23, size=2, color="#082a54") +
+ comp_theme +
+   theme(legend.position = c(.5, .1)) +
+   guides(color=guide_legend(ncol=2, title.position = "left")) +
+   labs(x= "Plot", y="Residual Error (cm)") +
+   theme(title = element_text(size = 10), 
+         axis.title.y = element_text(size = 9),
+        axis.text.x = element_text(size = 8, color = "black", angle = 90, vjust = 0.5, hjust=1),
+        axis.text.y = element_text(size = 8, color = "black"))+
+  annotate(
+    'text',
+    x = 15.8,
+    y = 80,
+    label = 'Overestimate',
+    fontface = 'plain', 
+    size = 3,
+    angle= 90,
+    color = "gray"
+  )  +
+  annotate(
+    'curve',
+    x = 16.3, # Play around with the coordinates until you're satisfied
+    y = 20,
+    yend = 120,
+    xend = 16.3,
+    linewidth = .8,
+    curvature = 0,
+    color="gray",
+    arrow = arrow(length = unit(0.4, 'cm'))
+  ) +
+  annotate(
+    'text',
+    x = 15.8,
+    y = -80,
+    label = 'Underestimate',
+    fontface = 'plain', 
+    size = 3,
+    angle= 90,
+    color = "gray"
+  )  +
+  annotate(
+    'curve',
+    x = 16.3, # Play around with the coordinates until you're satisfied
+    y = -20,
+    yend = -120,
+    xend = 16.3,
+    linewidth = .8,
+    curvature = 0,
+    color="gray",
+    arrow = arrow(length = unit(0.4, 'cm'))
+  )
+)
+```
+
+
+# Combine plots
+
+
+```{r}
+( top = cowplot::plot_grid(observPredPlotUnburned, observPredPlotBurned, ncol=2, labels = c("A", "B"))
+)
+
+( bottom = cowplot::plot_grid(residualErrorPlot, ncol=1, labels = "C")
+)
+
+( combineTopBottom = cowplot::plot_grid(top, bottom, ncol=1) )
+```
+
+
+```{r eval=FALSE, include=FALSE}
+ggsave("../figures/ValidationPlotsBurnUnburn.png", plot = combineTopBottom, dpi = 600, width = 6, height = 6, bg='white')
+```
+
+
+
+# Linear Model Cross Validation
+
+## All Data lm with cross validation
+ [medium article](https://medium.com/@josef.waples/k-fold-cross-validation-for-linear-regression-in-r-using-mtcars-2e9cf8b6a289)
+ 
+```{r}
+model = lm(predDepth ~ msrDepthLate, data = dfVal) 
+```
+
+```{r}
+summary(model)
+```
+
+```{r}
+# Get predicted values from the model
+predicted <- predict(model)
+
+# Calculate residuals
+residuals <- dfVal$predDepth - predicted
+
+# Calculate RMSE
+rmse <- sqrt(mean(residuals^2))
+
+# Print RMSE
+print(paste("RMSE:", rmse))
+```
+```{r}
+dfVal %>%
+  mutate(fold_number = rep(c("Fold1", "Fold2", "Fold3", "Fold4"), length.out = n())) -> dfVal
+
+# Create separate dataframes for each fold
+everything_except_fold1 <- filter(dfVal, fold_number != "Fold1")
+everything_except_fold2 <- filter(dfVal, fold_number != "Fold2")
+everything_except_fold3 <- filter(dfVal, fold_number != "Fold3")
+everything_except_fold4 <- filter(dfVal, fold_number != "Fold4")
+```
+
+```{r}
+model_fold_2_3_4 <- lm(predDepth ~ msrDepthLate, data = everything_except_fold1)
+model_fold_3_4_1 <- lm(predDepth ~ msrDepthLate, data = everything_except_fold2)
+model_fold_4_1_2 <- lm(predDepth ~ msrDepthLate, data = everything_except_fold3)
+model_fold_1_2_3 <- lm(predDepth ~ msrDepthLate, data = everything_except_fold4)
+```
+
+```{r}
+fold1 <- filter(dfVal, fold_number == "Fold1")
+fold2 <- filter(dfVal, fold_number == "Fold2")
+fold3 <- filter(dfVal, fold_number == "Fold3")
+fold4 <- filter(dfVal, fold_number == "Fold4")
+```
+
+```{r}
+fold1
+```
+
+```{r}
+# Predict using model_fold1 on fold 2, 3, and 4
+predictions_fold1 <- predict(model_fold_2_3_4, newdata = fold1)
+predictions_fold2 <- predict(model_fold_3_4_1, newdata = fold2)
+predictions_fold3 <- predict(model_fold_4_1_2, newdata = fold3)
+predictions_fold4 <- predict(model_fold_1_2_3, newdata = fold4)
+```
+
+```{r}
+fold1
+```
+```{r}
+# Calculate RMSE for each fold
+rmse_fold1 <- sqrt(mean((fold1$predDepth - predictions_fold1)^2))
+rmse_fold2 <- sqrt(mean((fold2$predDepth - predictions_fold2)^2))
+rmse_fold3 <- sqrt(mean((fold3$predDepth - predictions_fold3)^2))
+rmse_fold4 <- sqrt(mean((fold4$predDepth - predictions_fold4)^2))
+
+# Print RMSE for each fold
+print(paste("RMSE for Fold 1:", rmse_fold1))
+print(paste("RMSE for Fold 2:", rmse_fold2))
+print(paste("RMSE for Fold 3:", rmse_fold3))
+print(paste("RMSE for Fold 4:", rmse_fold4))
+
+(rmse_fold1 + rmse_fold2 + rmse_fold3 + rmse_fold4) / 4
+```
+predDepth ~ msrDepthLate + disturbance
+```{r}
+one <- ggplot(everything_except_fold1, aes(x = msrDepthLate, y = predDepth)) +
+  geom_point(size = 1, shape=1, color="#3d5a80")  + 
+  geom_abline(intercept = model_fold_2_3_4$coefficients[1], slope = model_fold_2_3_4$coefficients[2], color = "#f7aa58") +
+  ggtitle("All data") + labs(subtitle = 'folds 2, 3, 4') +
+  comp_theme 
+
+two <- ggplot(everything_except_fold2, aes(x = msrDepthLate, y = predDepth)) +
+  geom_point(size = 1, shape=1, color="#3d5a80")  + 
+  geom_abline(intercept = model_fold_3_4_1$coefficients[1], slope = model_fold_3_4_1$coefficients[2], color = "#f7aa58") +
+  ggtitle("All data") + labs(subtitle = 'folds 1, 3, 4') +
+  comp_theme
+
+three <- ggplot(everything_except_fold3, aes(x = msrDepthLate, y = predDepth)) +
+  geom_point(size = 1, shape=1, color="#3d5a80")  + 
+  geom_abline(intercept = model_fold_4_1_2$coefficients[1], slope = model_fold_4_1_2$coefficients[2], color = "#f7aa58") +
+  ggtitle("All data") + labs(subtitle = 'folds 1, 2, 4')+
+  comp_theme 
+
+four <- ggplot(everything_except_fold4, aes(x = msrDepthLate, y = predDepth)) +
+  geom_point(size = 1, shape=1, color="#3d5a80")  + 
+  geom_abline(intercept = model_fold_1_2_3$coefficients[1], slope = model_fold_1_2_3$coefficients[2], color = "#f7aa58") +
+  ggtitle("All data") + labs(subtitle = 'folds 1, 2, 3') +
+  comp_theme 
+
+library(patchwork)
+
+one + two + three + four
+```
+
+```{r}
+df1 <- data.frame(fold1$predDepth, predictions_fold1)
+df1
+one <- ggplot(df1, aes(y = fold1.predDepth, x = predictions_fold1)) + 
+  geom_point(size = 1, shape=1, color="#3d5a80")  + 
+  geom_abline(intercept = 0, slope = 1, color = "#f7aa58") +
+  ggtitle("All data") + labs(subtitle = 'prediction vs actual - folds 1, 2, 3') +
+  #xlim(12, 20) + ylim(12, 20) +
+  xlab("predictions") + ylab("actual") +
+ comp_theme 
+
+df2 <- data.frame(fold2$predDepth, predictions_fold2)
+
+two <- ggplot(df2, aes(y = fold2.predDepth, x = predictions_fold2)) + 
+  geom_point(size = 1, shape=1, color="#3d5a80")  + 
+  geom_abline(intercept = 0, slope = 1, color = "#f7aa58") +
+  ggtitle("All data") + labs(subtitle = 'prediction vs actual - folds 1, 3, 4') +
+  #xlim(12, 20) + ylim(12, 20) +
+  xlab("predictions") + ylab("actual") +
+ comp_theme
+
+df3 <- data.frame(fold3$predDepth, predictions_fold3)
+
+three <- ggplot(df3, aes(y = fold3.predDepth, x = predictions_fold3)) + 
+  geom_point(size = 1, shape=1, color="#3d5a80")  + 
+  geom_abline(intercept = 0, slope = 1, color = "#f7aa58") +
+  ggtitle("All data") + labs(subtitle = 'prediction vs actual - folds 1, 2, 4') +
+  #xlim(12, 20) + ylim(12, 20) + 
+  xlab("predictions") + ylab("actual") +
+ comp_theme
+
+
+df4 <- data.frame(fold4$predDepth, predictions_fold4)
+
+four <- ggplot(df4, aes(y = fold4.predDepth, x = predictions_fold4)) + 
+  geom_point(size = 1, shape=1, color="#3d5a80")  + 
+  geom_abline(intercept = 0, slope = 1, color = "#f7aa58") +
+  ggtitle("All data") + labs(subtitle = 'prediction vs actual - folds 1, 2, 3') +
+  #xlim(12, 20) + ylim(12, 20) +
+  xlab("predictions") + ylab("actual") +
+ comp_theme
+
+library(patchwork)
+
+one + two + three + four
+```
+
+## Burned lm with cross validation
+ [medium article](https://medium.com/@josef.waples/k-fold-cross-validation-for-linear-regression-in-r-using-mtcars-2e9cf8b6a289)
+ 
+```{r}
+model_burned = lm(predDepth ~ msrDepthLate, data = burned) 
+```
+
+```{r}
+summary(model_burned)
+```
+
+```{r}
+# Get predicted values from the model
+predicted <- predict(model_burned)
+
+# Calculate residuals
+residuals <- burned$predDepth - predicted
+
+# Calculate RMSE
+rmse <- sqrt(mean(residuals^2))
+
+# Print RMSE
+print(paste("RMSE:", rmse))
+```
+```{r}
+burned %>%
+  mutate(fold_number = rep(c("Fold1", "Fold2", "Fold3", "Fold4"), length.out = n())) -> burned
+
+# Create separate dataframes for each fold
+burned_everything_except_fold1 <- filter(burned, fold_number != "Fold1")
+burned_everything_except_fold2 <- filter(burned, fold_number != "Fold2")
+burned_everything_except_fold3 <- filter(burned, fold_number != "Fold3")
+burned_everything_except_fold4 <- filter(burned, fold_number != "Fold4")
+```
+
+```{r}
+model_burned_fold_2_3_4 <- lm(predDepth ~ msrDepthLate, data = burned_everything_except_fold1)
+model_burned_fold_3_4_1 <- lm(predDepth ~ msrDepthLate, data = burned_everything_except_fold2)
+model_burned_fold_4_1_2 <- lm(predDepth ~ msrDepthLate, data = burned_everything_except_fold3)
+model_burned_fold_1_2_3 <- lm(predDepth ~ msrDepthLate, data = burned_everything_except_fold4)
+```
+
+```{r}
+burned_fold1 <- filter(burned, fold_number == "Fold1")
+burned_fold2 <- filter(burned, fold_number == "Fold2")
+burned_fold3 <- filter(burned, fold_number == "Fold3")
+burned_fold4 <- filter(burned, fold_number == "Fold4")
+```
+
+
+```{r}
+# Predict using model_fold1 on fold 2, 3, and 4
+burned_predictions_fold1 <- predict(model_burned_fold_2_3_4, newdata = burned_fold1)
+burned_predictions_fold2 <- predict(model_burned_fold_3_4_1, newdata = burned_fold2)
+burned_predictions_fold3 <- predict(model_burned_fold_4_1_2, newdata = burned_fold3)
+burned_predictions_fold4 <- predict(model_burned_fold_1_2_3, newdata = burned_fold4)
+```
+
+
+```{r}
+# Calculate RMSE for each fold
+burned_rmse_fold1 <- sqrt(mean((burned_fold1$predDepth - burned_predictions_fold1)^2))
+burned_rmse_fold2 <- sqrt(mean((burned_fold2$predDepth - burned_predictions_fold2)^2))
+burned_rmse_fold3 <- sqrt(mean((burned_fold3$predDepth - burned_predictions_fold3)^2))
+burned_rmse_fold4 <- sqrt(mean((burned_fold4$predDepth - burned_predictions_fold4)^2))
+
+# Print RMSE for each fold
+print(paste("RMSE for Fold 1:", burned_rmse_fold1))
+print(paste("RMSE for Fold 2:", burned_rmse_fold2))
+print(paste("RMSE for Fold 3:", burned_rmse_fold3))
+print(paste("RMSE for Fold 4:", burned_rmse_fold4))
+
+(burned_rmse_fold1 + burned_rmse_fold2 + burned_rmse_fold3 + burned_rmse_fold4) / 4
+```
+predDepth ~ msrDepthLate + disturbance
+```{r}
+burned_one <- ggplot(everything_except_fold1, aes(x = msrDepthLate, y = predDepth)) +
+  geom_point(size = 1, shape=1, color="#3d5a80")  + 
+  geom_abline(intercept = model_burned_fold_2_3_4$coefficients[1], slope = model_burned_fold_2_3_4$coefficients[2], color = "#f7aa58") +
+  ggtitle("Burned") + labs(subtitle = 'folds 2, 3, 4') +
+ comp_theme
+
+burned_two <- ggplot(everything_except_fold2, aes(x = msrDepthLate, y = predDepth)) +
+  geom_point(size = 1, shape=1, color="#3d5a80")  + 
+  geom_abline(intercept = model_burned_fold_3_4_1$coefficients[1], slope = model_burned_fold_3_4_1$coefficients[2], color = "#f7aa58") +
+  ggtitle("Burned") + labs(subtitle = 'folds 1, 3, 4') +
+ comp_theme
+
+burned_three <- ggplot(everything_except_fold3, aes(x = msrDepthLate, y = predDepth)) +
+  geom_point(size = 1, shape=1, color="#3d5a80")  + 
+  geom_abline(intercept = model_burned_fold_4_1_2$coefficients[1], slope = model_burned_fold_4_1_2$coefficients[2], color = "#f7aa58") +
+  ggtitle("Burned") + labs(subtitle = 'folds 1, 2, 4') +
+ comp_theme
+
+burned_four <- ggplot(everything_except_fold4, aes(x = msrDepthLate, y = predDepth)) +
+  geom_point(size = 1, shape=1, color="#3d5a80")  + 
+  geom_abline(intercept = model_burned_fold_1_2_3$coefficients[1], slope = model_burned_fold_1_2_3$coefficients[2], color = "#f7aa58") +
+  ggtitle("Burned") + labs(subtitle = 'folds 1, 2, 3') +
+ comp_theme
+
+library(patchwork)
+
+burned_one + burned_two + burned_three + burned_four
+```
+
+```{r}
+burned_df1 <- data.frame(burned_fold1$predDepth, burned_predictions_fold1)
+burned_df1
+burned_one <- ggplot(burned_df1, aes(y = burned_fold1.predDepth, x = burned_predictions_fold1)) + 
+  geom_point(size = 1, shape=1, color="#3d5a80")  + 
+  geom_abline(intercept = 0, slope = 1, color = "#f7aa58") +
+  ggtitle("Burned") + labs(subtitle = 'prediction vs actual - folds 1, 2, 3') +
+  #xlim(12, 20) + ylim(12, 20) +
+  xlab("predictions") + ylab("actual") +
+ comp_theme
+
+burned_df2 <- data.frame(burned_fold2$predDepth, burned_predictions_fold2)
+
+burned_two <- ggplot(burned_df2, aes(y = burned_fold2.predDepth, x = burned_predictions_fold2)) + 
+  geom_point(size = 1, shape=1, color="#3d5a80")  + 
+  geom_abline(intercept = 0, slope = 1, color = "#f7aa58") +
+  ggtitle("Burned") + labs(subtitle = 'prediction vs actual - folds 1, 3, 4') +
+  #xlim(12, 20) + ylim(12, 20) +
+  xlab("predictions") + ylab("actual") +
+ comp_theme
+
+burned_df3 <- data.frame(burned_fold3$predDepth, burned_predictions_fold3)
+
+burned_three <- ggplot(burned_df3, aes(y = burned_fold3.predDepth, x = burned_predictions_fold3)) + 
+  geom_point(size = 1, shape=1, color="#3d5a80")  + 
+  geom_abline(intercept = 0, slope = 1, color = "#f7aa58") +
+  ggtitle("Burned") + labs(subtitle = 'prediction vs actual - folds 1, 2, 4') +
+  #xlim(12, 20) + ylim(12, 20) + 
+  xlab("predictions") + ylab("actual") +
+ comp_theme
+
+
+burned_df4 <- data.frame(burned_fold4$predDepth, burned_predictions_fold4)
+
+burned_four <- ggplot(burned_df4, aes(y = burned_fold4.predDepth, x = burned_predictions_fold4)) + 
+  geom_point(size = 1, shape=1, color="#3d5a80")  + 
+  geom_abline(intercept = 0, slope = 1, color = "#f7aa58") +
+  ggtitle("Burned") + labs(subtitle = 'prediction vs actual - folds 1, 2, 3') +
+  #xlim(12, 20) + ylim(12, 20) +
+  xlab("predictions") + ylab("actual")+
+ comp_theme
+
+library(patchwork)
+
+burned_one + burned_two + burned_three + burned_four
+```
+
+
+## Unburned lm with cross validation
+ [medium article](https://medium.com/@josef.waples/k-fold-cross-validation-for-linear-regression-in-r-using-mtcars-2e9cf8b6a289)
+ 
+```{r}
+model_unburned = lm(predDepth ~ msrDepthLate, data = unburned) 
+```
+
+```{r}
+summary(model_unburned)
+```
+
+```{r}
+# Get predicted values from the model
+predicted <- predict(model_unburned)
+
+# Calculate residuals
+residuals <- unburned$predDepth - predicted
+
+# Calculate RMSE
+rmse <- sqrt(mean(residuals^2))
+
+# Print RMSE
+print(paste("RMSE:", rmse))
+```
+```{r}
+unburned %>%
+  mutate(fold_number = rep(c("Fold1", "Fold2", "Fold3", "Fold4"), length.out = n())) -> unburned
+
+# Create separate dataframes for each fold
+unburned_everything_except_fold1 <- filter(unburned, fold_number != "Fold1")
+unburned_everything_except_fold2 <- filter(unburned, fold_number != "Fold2")
+unburned_everything_except_fold3 <- filter(unburned, fold_number != "Fold3")
+unburned_everything_except_fold4 <- filter(unburned, fold_number != "Fold4")
+```
+
+```{r}
+model_unburned_fold_2_3_4 <- lm(predDepth ~ msrDepthLate, data = unburned_everything_except_fold1)
+model_unburned_fold_3_4_1 <- lm(predDepth ~ msrDepthLate, data = unburned_everything_except_fold2)
+model_unburned_fold_4_1_2 <- lm(predDepth ~ msrDepthLate, data = unburned_everything_except_fold3)
+model_unburned_fold_1_2_3 <- lm(predDepth ~ msrDepthLate, data = unburned_everything_except_fold4)
+```
+
+```{r}
+unburned_fold1 <- filter(unburned, fold_number == "Fold1")
+unburned_fold2 <- filter(unburned, fold_number == "Fold2")
+unburned_fold3 <- filter(unburned, fold_number == "Fold3")
+unburned_fold4 <- filter(unburned, fold_number == "Fold4")
+```
+
+
+```{r}
+# Predict using model_fold1 on fold 2, 3, and 4
+unburned_predictions_fold1 <- predict(model_unburned_fold_2_3_4, newdata = unburned_fold1)
+unburned_predictions_fold2 <- predict(model_unburned_fold_3_4_1, newdata = unburned_fold2)
+unburned_predictions_fold3 <- predict(model_unburned_fold_4_1_2, newdata = unburned_fold3)
+unburned_predictions_fold4 <- predict(model_unburned_fold_1_2_3, newdata = unburned_fold4)
+```
+
+
+```{r}
+# Calculate RMSE for each fold
+unburned_rmse_fold1 <- sqrt(mean((unburned_fold1$predDepth - unburned_predictions_fold1)^2))
+unburned_rmse_fold2 <- sqrt(mean((unburned_fold2$predDepth - unburned_predictions_fold2)^2))
+unburned_rmse_fold3 <- sqrt(mean((unburned_fold3$predDepth - unburned_predictions_fold3)^2))
+unburned_rmse_fold4 <- sqrt(mean((unburned_fold4$predDepth - unburned_predictions_fold4)^2))
+
+# Print RMSE for each fold
+print(paste("RMSE for Fold 1:", unburned_rmse_fold1))
+print(paste("RMSE for Fold 2:", unburned_rmse_fold2))
+print(paste("RMSE for Fold 3:", unburned_rmse_fold3))
+print(paste("RMSE for Fold 4:", unburned_rmse_fold4))
+
+(unburned_rmse_fold1 + unburned_rmse_fold2 + unburned_rmse_fold3 + unburned_rmse_fold4) / 4
+```
+predDepth ~ msrDepthLate + disturbance
+```{r}
+unburned_one <- ggplot(everything_except_fold1, aes(x = msrDepthLate, y = predDepth)) +
+  geom_point(size = 1, shape=1, color="#3d5a80")  + 
+  geom_abline(intercept = model_unburned_fold_2_3_4$coefficients[1], slope = model_unburned_fold_2_3_4$coefficients[2], color = "#f7aa58") +
+  ggtitle("Unburned") + labs(subtitle = 'folds 2, 3, 4') +
+ comp_theme
+
+unburned_two <- ggplot(everything_except_fold2, aes(x = msrDepthLate, y = predDepth)) +
+  geom_point(size = 1, shape=1, color="#3d5a80")  + 
+  geom_abline(intercept = model_unburned_fold_3_4_1$coefficients[1], slope = model_unburned_fold_3_4_1$coefficients[2], color = "#f7aa58") +
+  ggtitle("Unburned") + labs(subtitle = 'folds 1, 3, 4') +
+ comp_theme
+
+unburned_three <- ggplot(everything_except_fold3, aes(x = msrDepthLate, y = predDepth)) +
+  geom_point(size = 1, shape=1, color="#3d5a80")  + 
+  geom_abline(intercept = model_unburned_fold_4_1_2$coefficients[1], slope = model_unburned_fold_4_1_2$coefficients[2], color = "#f7aa58") +
+  ggtitle("Unburned") + labs(subtitle = 'folds 1, 2, 4') +
+ comp_theme
+
+unburned_four <- ggplot(everything_except_fold4, aes(x = msrDepthLate, y = predDepth)) +
+  geom_point(size = 1, shape=1, color="#3d5a80")  + 
+  geom_abline(intercept = model_unburned_fold_1_2_3$coefficients[1], slope = model_unburned_fold_1_2_3$coefficients[2], color = "#f7aa58") +
+  ggtitle("Unburned") + labs(subtitle = 'folds 1, 2, 3') +
+ comp_theme
+
+library(patchwork)
+
+unburned_one + unburned_two + unburned_three + unburned_four
+```
+
+```{r}
+unburned_df1 <- data.frame(unburned_fold1$predDepth, unburned_predictions_fold1)
+unburned_df1
+unburned_one <- ggplot(unburned_df1, aes(y = unburned_fold1.predDepth, x = unburned_predictions_fold1)) + 
+  geom_point(size = 1, shape=1, color="#3d5a80")  + 
+  geom_abline(intercept = 0, slope = 1, color = "#f7aa58") +
+  ggtitle("Unburned") + labs(subtitle = 'prediction vs actual - folds 1, 2, 3') +
+  #xlim(12, 20) + ylim(12, 20) +
+  xlab("predictions") + ylab("actual") +
+ comp_theme
+
+unburned_df2 <- data.frame(unburned_fold2$predDepth, unburned_predictions_fold2)
+
+unburned_two <- ggplot(unburned_df2, aes(y = unburned_fold2.predDepth, x = unburned_predictions_fold2)) + 
+  geom_point(size = 1, shape=1, color="#3d5a80")  + 
+  geom_abline(intercept = 0, slope = 1, color = "#f7aa58") +
+  ggtitle("Unburned") + labs(subtitle = 'prediction vs actual - folds 1, 3, 4') +
+  #xlim(12, 20) + ylim(12, 20) +
+  xlab("predictions") + ylab("actual") +
+ comp_theme
+
+unburned_df3 <- data.frame(unburned_fold3$predDepth, unburned_predictions_fold3)
+
+unburned_three <- ggplot(unburned_df3, aes(y = unburned_fold3.predDepth, x = unburned_predictions_fold3)) + 
+  geom_point(size = 1, shape=1, color="#3d5a80")  + 
+  geom_abline(intercept = 0, slope = 1, color = "#f7aa58") +
+  ggtitle("Unburned") + labs(subtitle = 'prediction vs actual - folds 1, 2, 4') +
+  #xlim(12, 20) + ylim(12, 20) + 
+  xlab("predictions") + ylab("actual") +
+ comp_theme
+
+
+unburned_df4 <- data.frame(unburned_fold4$predDepth, unburned_predictions_fold4)
+
+unburned_four <- ggplot(unburned_df4, aes(y = unburned_fold4.predDepth, x = unburned_predictions_fold4)) + 
+  geom_point(size = 1, shape=1, color="#3d5a80")  + 
+  geom_abline(intercept = 0, slope = 1, color = "#f7aa58") +
+  ggtitle("Unburned") + labs(subtitle = 'prediction vs actual - folds 1, 2, 3') +
+  #xlim(12, 20) + ylim(12, 20) +
+  xlab("predictions") + ylab("actual") +
+ comp_theme
+
+library(patchwork)
+
+unburned_one + unburned_two + unburned_three + unburned_four
+```
+
+

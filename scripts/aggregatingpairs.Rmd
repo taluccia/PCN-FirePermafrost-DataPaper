@@ -1,0 +1,79 @@
+---
+title: "Aggregating pairs"
+author: "Anna Talucci"
+date: "2024-09-27"
+output: html_document
+---
+
+# clear environment
+```{r}
+rm(list=ls())
+```
+
+# Overview
+Figures looking at measured versus predicted
+
+
+# Packages
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(ggpubr)
+library(ggnewscale)
+library(ggthemes)
+```
+
+# Plot themes
+```{r}
+comp_theme = theme_bw() + theme(legend.position = "bottom") +  
+  theme(panel.grid.major = element_blank()) +
+    theme(axis.title.y = element_text(size = 11, hjust = 0.5, vjust = 1.1),
+        axis.text.x = element_text(size = 10, color = "black"),
+        axis.text.y = element_text(size = 10, color = "black"))
+```
+
+# Data
+
+## Predicted measurements
+
+```{r}
+datacubePred = read_csv("../data/dataCube/PermafrostFireDatacubeFinal.csv")
+```
+
+```{r}
+datacubePred
+```
+
+# Depth difference by biome and permafrost extent
+
+## By Biome
+
+```{r}
+( aggregateUnburnedB = datacubePred %>% 
+    drop_na(paired) %>%
+    filter(distur =="unburned") %>%
+  group_by(resBiome, distur, permaExtent, tsf) 
+)
+```
+%>%
+  summarise(n = n(),
+            mean = mean(predDepth),
+            sd   = sd(predDepth, na.rm=TRUE),
+            se   = sd / sqrt(n))  %>%
+    dplyr::select(resBiome:tsf, mean, se) %>%
+  rename(mean_unburned = mean, se_unburned = se, disturUnburn = distur)
+```{r}
+( aggregateBurnedB = datacubePred %>% 
+    drop_na(paired) %>%
+    filter(distur =="burned") %>%
+  group_by(paired, resBiome, distur, permaExtent, tsfClass) 
+)
+```
+%>%
+  summarise(n = n(),
+            mean = mean(predDepth),
+            sd   = sd(predDepth, na.rm=TRUE),
+            se   = sd / sqrt(n))  %>%
+    dplyr::select(resBiome:tsfClass, mean, se) %>%
+  rename(mean_burned = mean, se_burned = se, disturBurn = distur) 

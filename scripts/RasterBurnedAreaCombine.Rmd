@@ -1,0 +1,145 @@
+---
+title: "Burned Area Mosaic MCD64"
+author: "Anna Talucci"
+date: "2024-10-21"
+output: html_document
+---
+
+```{r clear environment}
+rm(list=ls())
+```
+
+# Overview
+
+# Packages
+```{r}
+library(terra)
+library(tidyverse)
+library(sf)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(RColorBrewer)
+library(cowplot)
+library(ggpubr)
+library(ggnewscale)
+library(scales)
+library(ggrepel)
+library(patchwork)
+
+
+library(tidyterra)
+```
+
+# raster data
+
+```{r}
+filelist <- list.files("../data/abba", ".tif$", full.names = TRUE)
+```
+
+```{r}
+filelist
+```
+
+```{r}
+# list of rast objects
+r_list <- lapply(filelist, rast)
+# create spatial raster collection
+coll <- sprc(r_list)
+```
+
+
+```{r mosaic raster}
+# combine all rasters
+burnedArea = mosaic(coll)
+```
+```{r}
+burnedArea
+```
+```{r}
+plot(burnedArea)
+```
+
+# Projection
+[Some projection info]https://nsidc.org/data/user-resources/help-center/guide-nsidcs-polar-stereographic-projection)
+```{r}
+polarProj = "+proj=stere +lat_0=90 +lat_ts=70 +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +type=crs"
+```
+polarProj = "+proj=stere +lat_0=90 +lat_ts=70 +lon_0=-45 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +type=crs"
+
+```{r}
+sincrs <- "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m"
+```
+
+```{r}
+lonlat <- '+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0' 
+```
+
+## reproject
+
+```{r}
+burnedArea_wgs <- terra::project(burnedArea, lonlat)
+```
+
+```{r}
+burnedArea_wgs
+```
+
+```{r}
+plot(burnedArea_wgs, col="red")
+```
+
+# Write raster to file
+
+```{r}
+r = writeRaster(burnedArea_wgs, "../outputs/burnedArea_wgs.tif", overwrite=TRUE, NAflag=-99) 
+```
+
+# Crop Raster
+```{r}
+pts = st_read("../outputs/pts.gpkg")
+```
+
+```{r}
+ba = rast("../outputs/burnedArea_wgs.tif")
+ba
+```
+## Resolve Polygons
+
+```{r}
+resolve = st_read("../data/spatialData/RESOLVE_Ecoregions_and_Biomes/Biomes_and_Ecoregions_2017.shp", "Biomes_and_Ecoregions_2017")
+```
+
+
+# Subset vector data
+```{r}
+resTarget = c( "Arctic foothills tundra", "Beringia lowland tundra",  "Beringia upland tundra", "Chukchi Peninsula tundra", "East Siberian taiga", "Interior Alaska-Yukon lowland taiga", "Interior Yukon-Alaska alpine tundra", "Muskwa-Slave Lake taiga", "Northeast Siberian taiga", "Northern Canadian Shield taiga",      "Northwest Territories taiga", "Yamal-Gydan tundra")
+```
+
+```{r}
+( resolve1 = resolve %>% filter(ECO_NAME %in% resTarget) )
+```
+
+```{r}
+( russia_eco = resolve %>% filter(REALM=="Palearctic") )
+( na_eco = resolve %>% filter(REALM == "Nearctic") )
+```
+
+
+```{r}
+( russia = pts %>% filter(cntryId=="RU") )
+( na = pts %>% filter(cntryId %in% c("CA", "US")) )
+```
+
+```{r}
+ba_russia <- crop(x = ba, y = russia_eco)
+ba_na <- crop(x = ba, y = na_eco)
+```
+```{r}
+plot(russia_eco)
+```
+
+```{r}
+plot(ba_russia)
+
+plot(ba_na)
+```
