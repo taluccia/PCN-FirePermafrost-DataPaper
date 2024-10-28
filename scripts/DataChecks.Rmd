@@ -23,40 +23,150 @@ library(ggnewscale)
 
 ## Predicted measurements
 ```{r}
-datacube = read_csv("../data/dataCube/PermafrostFireDatacubeFinal.csv")
+firealt =read_csv("../data/dataset/FireALTdataset.csv")
 ```
 
 ```{r}
-datacube
+firealt
+```
+# Names
+
+```{r}
+names(firealt)
+```
+```{r}
+unique(firealt)
+```
+# Min/Max lat/lon
+
+```{r}
+min(firealt$lat)
+max(firealt$lat)
+min(firealt$lon)
+max(firealt$lon)
+```
+```{r}
+firealt %>% filter(lon>0) %>% summarise(min=min(lon),
+                                        max=max(lon))
 ```
 
+```{r}
+firealt %>% filter(lon<0) %>% summarise(min=min(lon),
+                                        max=max(lon))
+```
+
+# Biome
+
+```{r}
+firealt %>% group_by(submitNm, biome, resBiome) %>%
+  summarise(n = n())
+```
+
+
+```{r}
+firealt %>% group_by(submitNm, biome, resBiome, resName) %>%
+  summarise(n = n())
+```
+
+# Fire events
+
+```{r}
+firealt %>% group_by(distur) %>% summarise(n=n())
+```
+
+```{r}
+firealt %>% group_by(cntryId, distur) %>% summarise(n=n())
+```
+
+# Pairs, fire year
+
+```{r}
+firealt %>% group_by(submitNm, resBiome, resName,  paired,  fireYr) %>% 
+  summarise(n = n()) %>%
+  filter(fireYr != -9999)
+```
+```{r}
+firealt %>% group_by(paired) %>% 
+  summarise(n = n()) 
+```
+```{r}
+firealt %>% group_by( distur, paired) %>% 
+  summarise(n = n()) %>%
+  filter(distur == "burned")
+```
+```{r}
+firealt %>% group_by( distur, paired, fireYr) %>% 
+  summarise(n = n()) 
+```
+```{r}
+sort(unique(firealt$paired))
+```
+```{r}
+firealt %>% group_by(siteId) %>% 
+  summarise(n = n()) 
+```
+# Unique Pairs
+```{r}
+( aggregate = firealt %>% 
+  group_by(resBiome, resName, submitNm, distur, permaExtent, paired, fireYr, fireId, tsf, tsfClass) %>%
+  summarise(n = n(),
+            mean = mean(estDepth),
+            sd   = sd(estDepth, na.rm=TRUE),
+            se   = sd / sqrt(n))
+)
+```
+
+
+```{r}
+( burnedonly = aggregate %>% filter(distur=="burned") )
+```
+
+
+```{r}
+sort(unique(burnedonly$fireYr)) # 37
+sort(unique(burnedonly$fireId)) # 63
+```
+
+
+# Ecozones
+```{r}
+sort(unique(firealt$resName))
+```
+```{r}
+firealt %>% filter(resName=="Arctic Coastal tundra")
+```
 # Check Olefeldt fire years
 
 ```{r}
-olefeldt = datacube %>% filter(submitNm=="Olefeldt") 
+olefeldt = firealt %>% filter(submitNm=="Olefeldt") 
 sort(unique(olefeldt$fireYr))
 ```
 
 # Check fire year ranges
 
 ```{r}
-min(datacube$fireYr)
-max(datacube$fireYr)
-sort(unique(datacube$fireYr))
+min(firealt$fireYr)
+max(firealt$fireYr)
+sort(unique(firealt$fireYr))
 ```
 
 # Probe values over 110
 
 ```{r}
-max(datacube$msrDepth)
+max(firealt$msrDepth)
 ```
 
 ```{r}
-( gt150 = datacube %>% filter(msrDepth>150) )
+( gt150 = firealt %>% filter(msrDepth>150) )
 
 unique(gt150$submitNm)
 ```
 
 ```{r}
-datacube %>% filter(msrDepth>250)
+firealt %>% filter(msrDepth>200)
+```
+
+
+```{r}
+firealt %>% group_by(submitNm) %>% summarise(count = n())
 ```

@@ -46,36 +46,105 @@ df_to_sf <- function(x){
 ```{r}
 pts = datacube %>% df_to_sf()
 ```
+```{r}
+st_write(pts, "../outputs/pts.gpkg")
+```
+
+```{r}
+sort(unique(pts$paired))
+```
 
 # Group and estimate distance
-
-
 ```{r}
-Loranty = pts %>% 
-    #filter(submitNm=='Loranty') %>%
-  group_by(paired, distur) %>%
-    st_distance()
-
+test = pts %>% group_by(paired) %>% st_distance() %>% as.data.frame() 
 ```
 
 ```{r}
-(df = as.data.frame(Loranty))
+min(test)
+max(test)
 ```
-```{r}
-df %>% filter_at(all_vars(), all_vars(!=0))
-```
-locations <- locations %>%
-    mutate(
-        dist = geosphere::distHaversine(cbind(homelong, homelat), cbind(worklong, worklat))
-    )
+## a pairs
 
-locations
 ```{r}
-datacube %>% 
-  filter(submitNm=="Delcourt") %>% 
-  group_by(paired, distur) %>% 
-  dplyr::select(paired, distur, lat, lon) %>%
-  group_map(~ data.frame(avg=mean(proxy::dist(.x[ , c("lon", "lat")], method="haversine"))))
-
-  
+a1= pts %>% filter(paired=="a1") %>% group_by(distur) %>% st_distance() %>% as.data.frame() 
+a2= pts %>% filter(paired=="a2") %>% group_by(distur) %>% st_distance() %>% as.data.frame() 
+a3= pts %>% filter(paired=="a3") %>% group_by(distur) %>% st_distance() %>% as.data.frame() 
+a4= pts %>% filter(paired=="a4") %>% group_by(distur) %>% st_distance() %>% as.data.frame() 
+a5= pts %>% filter(paired=="a5") %>% group_by(distur) %>% st_distance() %>% as.data.frame() 
+a6= pts %>% filter(paired=="a6") %>% group_by(distur) %>% st_distance() %>% as.data.frame() 
+a7= pts %>% filter(paired=="a7") %>% group_by(distur) %>% st_distance() %>% as.data.frame() 
 ```
+
+```{r}
+max(a1)
+max(a2)
+max(a3)
+max(a4)
+max(a5)
+max(a6)
+max(a7)
+```
+
+
+
+## b & c pairs
+
+```{r}
+b1= pts %>% filter(paired=="b1") %>% group_by(distur) %>% st_distance() %>% as.data.frame() 
+c1= pts %>% filter(paired=="c2") %>% group_by(distur) %>% st_distance() %>% as.data.frame() 
+```
+
+```{r}
+max(b1)
+max(c1)
+```
+## d pairs
+
+```{r}
+d1= pts %>% filter(paired=="d1") %>% group_by(distur) %>% st_distance() %>% as.data.frame() 
+d2= pts %>% filter(paired=="d2") %>% group_by(distur) %>% st_distance() %>% as.data.frame() 
+d3= pts %>% filter(paired=="d3") %>% group_by(distur) %>% st_distance() %>% as.data.frame() 
+d4= pts %>% filter(paired=="d4") %>% group_by(distur) %>% st_distance() %>% as.data.frame() 
+d5= pts %>% filter(paired=="d5") %>% group_by(distur) %>% st_distance() %>% as.data.frame() 
+d6= pts %>% filter(paired=="d6") %>% group_by(distur) %>% st_distance() %>% as.data.frame() 
+d7= pts %>% filter(paired=="d7") %>% group_by(distur) %>% st_distance() %>% as.data.frame()
+d8= pts %>% filter(paired=="d8") %>% group_by(distur) %>% st_distance() %>% as.data.frame()
+```
+
+```{r}
+max(d1)
+max(d2)
+max(d3)
+max(d4)
+max(d5)
+max(d6)
+max(d7)
+max(d8)
+```
+
+## e pairs
+
+```{r}
+e1= pts %>% filter(paired=="e1") %>% group_by(distur) %>% st_distance() %>% as.data.frame() 
+e2= pts %>% filter(paired=="e2") %>% group_by(distur) %>% st_distance() %>% as.data.frame() 
+e3= pts %>% filter(paired=="e3") %>% group_by(distur) %>% st_distance() %>% as.data.frame() 
+e4= pts %>% filter(paired=="e4") %>% group_by(distur) %>% st_distance() %>% as.data.frame() 
+e5= pts %>% filter(paired=="e5") %>% group_by(distur) %>% st_distance() %>% as.data.frame() 
+e6= pts %>% filter(paired=="e6") %>% group_by(distur) %>% st_distance() %>% as.data.frame() 
+e7= pts %>% filter(paired=="e7") %>% group_by(distur) %>% st_distance() %>% as.data.frame()
+e8= pts %>% filter(paired=="e8") %>% group_by(distur) %>% st_distance() %>% as.data.frame()
+```
+
+```{r}
+max(e1)
+max(e2)
+max(e3)
+max(e4)
+max(e5)
+max(e6)
+max(e7)
+max(e8)
+```
+
+
+

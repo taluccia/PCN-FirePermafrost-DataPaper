@@ -36,84 +36,46 @@ comp_theme = theme_bw() + theme(legend.position = "bottom") +
 # Data
 
 ## Predicted measurements
-'../outputs/dataCube/AggregatedBurnUnburn.csv')
-```{r}
-aggregate = read_csv("../data/aggregate/AggregatedBurnUnburnPairs.csv")
-```
-```{r}
-aggregateBiome = read_csv("../data/aggregate/AggregatedBurnUnburnBiome.csv")
-```
+
+## Predicted measurements
 
 ```{r}
-depthChange = read_csv("../data/aggregate/AggregatedDepthChange.csv")
+datacubePred = read_csv("../data/dataCube/PermafrostFireDatacubeFinal.csv")
 ```
 
+```{r}
+datacubePred
+```
+
+# Aggregate
 
 ```{r}
-depthChangeBiome = read_csv("../data/aggregate/AggregatedDepthChangeBiome.csv")
+( aggregate = datacubePred %>% 
+  group_by(resBiome, resName, submitNm, distur, permaExtent, paired, fireYr, tsf, tsfClass) %>%
+  summarise(n = n(),
+            mean = mean(predDepth),
+            sd   = sd(predDepth, na.rm=TRUE),
+            se   = sd / sqrt(n))
+)
 ```
 # Add factor levels for TSF
 
-```{r}
-aggregate$tsf = factor(aggregate$tsf, levels = c("u", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17","19", "20", "21", "29", "30", "31", "32",  "33", "35", "36", "39", "40", "41", "45", "46", "47", "48", "49", "50", "52", "114"))
-```
 
 ```{r}
-unique(aggregate$tsf)
+aggregate$tsfClass = factor(aggregate$tsfClass, levels = c( "unburned", "0-3", "4-10", "11-20", "21-40", ">40"))
 ```
 
-```{r}
-aggregateBiome$tsf = factor(aggregateBiome$tsf, levels = c("u", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17","19", "20", "21", "29", "30", "31", "32",  "33", "35", "36", "39", "40", "41", "45", "46", "47", "48", "49", "50", "52", "114"))
-```
 
-```{r}
-unique(aggregateBiome$tsf)
-```
 
-```{r}
-aggregateBiome$permaExtent <- fct_recode(aggregateBiome$permaExtent, "Continuous"= "C", "Discontinuous"="D", "Sporadic"="S")
-```
 
-```{r}
-unique(aggregateBiome$permaExtent)
-```
 
-```{r}
-depthChange$tsf = factor(depthChange$tsf, levels = c("u", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17","19", "20", "21", "29", "30", "31", "32",  "33", "35", "36", "39", "40", "41", "45", "46", "47", "48", "49", "50", "52", "114"))
-```
-
-```{r}
-unique(depthChange$tsf)
-```
-
-```{r}
-depthChangeBiome$tsf = factor(depthChangeBiome$tsf, levels = c("u", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17","19", "20", "21", "29", "30", "31", "32",  "33", "35", "36", "39", "40", "41", "45", "46", "47", "48", "49", "50", "52", "114"))
-```
-
-```{r}
-unique(depthChange$tsf)
-```
-
-```{r}
-unique(depthChangeBiome$permaExtent)
-```
 
 ```{r}
 depthChangeBiome$permaExtent <- fct_recode(depthChangeBiome$permaExtent, "Continuous"= "C", "Discontinuous"="D", "Sporadic"="S")
 ```
 
-```{r}
-unique(depthChangeBiome$permaExtent)
-```
 
-# View data frames
 
-```{r}
-aggregate 
-aggregateBiome
-depthChange
-depthChangeBiome
-```
 
 
 
@@ -153,8 +115,8 @@ ggsave("../figures/AggregateBurnedUnburnedBoxPlot.png", plot = pairedBoxplots, w
 # TSF Burned Unburned Mean with SE
 
 ```{r}
-( plotBiomeTSF <- ggplot(aggregateBiome, aes(x = tsf, y=mean, color=distur, group=tsf)) +
-    geom_point() +
+( plotBiomeTSF <- ggplot(aggregate, aes(x = tsfClass, y=mean, color=distur)) +
+    geom_boxplot() +
       scale_color_manual(values=c('#fc8d59', '#91bfdb'), name="", labels = c('Burned', 'Unburned')) +
     scale_y_reverse() +
   labs(x="Time since fire", y="Depth (cm)") +
@@ -179,53 +141,7 @@ ggsave("../figures/AggregateBurnedUnburnedBiomeTsf.png", plot = plotBiomeTSF, wi
 ```
 
 
-```{r}
-depthChangeBiome
-```
-# By Biome
-```{r}
-( plotDepthChangeBiome = ggplot(depthChangeBiome, aes(x = tsf, y=depthChange)) +
-  geom_hline(yintercept=0, color="gray", size = 3, alpha = .5) + 
-   geom_point(color='#5e4fa2', size = 3, shape = 21) +
-
-      #scale_color_manual(values=c('#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02','#a6761d'), name="") +
-  scale_y_reverse() +
-  labs(x="Time since fire", y="Change in depth (cm)") +
-     #facet_grid(vars(resBiome), vars(permaExtent), scales="free") +
-  facet_wrap(~resBiome + permaExtent, scales = "free") +
-  comp_theme +
-    theme(legend.position = "none",
-          axis.text.y = element_text(size=5),
-          axis.text.x = element_text(size=5, angle=45),
-          strip.background = element_rect( color="white", fill="white", size=1.5, linetype="solid" )) +
-    theme(strip.text.x = element_text(size = 6))
-)
-```
-
-```{r eval=FALSE, include=FALSE}
-ggsave("../figures/AggregateDepthChangeTsfBiome.png", plot = plotDepthChangeBiome,  width = 6, height =5, units = c("in"), dpi=600, bg = "white" )
-```
 
 
-# By Ecozone
-```{r}
-( plotDepthChange = ggplot(depthChange, aes(x = tsf, y=depthChange)) +
-  geom_hline(yintercept=0, color="gray", size = 3, alpha = .5) + 
-   geom_point(color='#5e4fa2', size = 3, shape = 21) +
 
-      #scale_color_manual(values=c('#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02','#a6761d'), name="") +
-  scale_y_reverse() +
-  labs(x="Time since fire", y="Change in depth (cm)") +
-  facet_wrap(~resName, scales = "free") +
-  comp_theme +
-    theme(legend.position = "none",
-          axis.text.y = element_text(size=5),
-          axis.text.x = element_text(size=5, angle=45),
-          strip.background = element_rect( color="white", fill="white", size=1.5, linetype="solid" )) +
-    theme(strip.text.x = element_text(size = 6))
-)
-```
 
-```{r eval=FALSE, include=FALSE}
-ggsave("../figures/AggregateDepthChangeTsfEcozone.png", plot = plotDepthChange,  width = 6, height =5, units = c("in"), dpi=600, bg = "white" )
-```

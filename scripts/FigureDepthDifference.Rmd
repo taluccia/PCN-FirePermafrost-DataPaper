@@ -45,13 +45,17 @@ datacubePred = read_csv("../data/dataCube/PermafrostFireDatacubeFinal.csv")
 datacubePred
 ```
 
-# Depth difference by biome and permafrost extent
+# Depth difference and percent difference
+
+## Split burned/unburned 
+
+### By Biome
 
 ```{r}
-( aggregateUnburnedB = datacubePred %>% 
+( unburnedBiome = datacubePred %>% 
     drop_na(paired) %>%
     filter(distur =="unburned") %>%
-  group_by(resBiome, distur, permaExtent, tsf) %>%
+  group_by(paired, resBiome, distur, permaExtent, fireYr, tsf) %>%
   summarise(n = n(),
             mean = mean(predDepth),
             sd   = sd(predDepth, na.rm=TRUE),
@@ -62,10 +66,10 @@ datacubePred
 ```
 
 ```{r}
-( aggregateBurnedB = datacubePred %>% 
+( burnedBiome = datacubePred %>% 
     drop_na(paired) %>%
     filter(distur =="burned") %>%
-  group_by(resBiome, distur, permaExtent, tsfClass) %>%
+  group_by(paired, resBiome, distur, permaExtent, fireYr, tsf, tsfClass) %>%
   summarise(n = n(),
             mean = mean(predDepth),
             sd   = sd(predDepth, na.rm=TRUE),
@@ -75,32 +79,149 @@ datacubePred
 )
 ```
 
+### By Ecozone
+
 ```{r}
-( depthChangeBiome = aggregateBurnedB %>% 
-    left_join(aggregateUnburnedB, by=c("resBiome", "permaExtent")) %>%
-  drop_na(disturUnburn) %>%
-  mutate(depthChange = mean_burned-mean_unburned) 
+( unburnedEcozone = datacubePred %>% 
+    drop_na(paired) %>%
+    filter(distur =="unburned") %>%
+  group_by(paired, resName, distur, permaExtent, tsf) %>%
+  summarise(n = n(),
+            mean = mean(predDepth),
+            sd   = sd(predDepth, na.rm=TRUE),
+            se   = sd / sqrt(n))  %>%
+    dplyr::select(resName:tsf, mean, se) %>%
+  rename(mean_unburned = mean, se_unburned = se, disturUnburn = distur)
 )
 ```
 
 ```{r}
-depthChangeBiome$tsfClass = factor(depthChangeBiome$tsfClass, levels = c( "unburned", "0-3", "4-10", "11-20", "21-40", ">40"))
+( burnedEcozone = datacubePred %>% 
+    drop_na(paired) %>%
+    filter(distur =="burned") %>%
+  group_by(paired, resName, distur, permaExtent, fireYr, tsf, tsfClass) %>%
+  summarise(n = n(),
+            mean = mean(predDepth),
+            sd   = sd(predDepth, na.rm=TRUE),
+            se   = sd / sqrt(n))  %>%
+    dplyr::select(resName:tsfClass, mean, se) %>%
+  rename(mean_burned = mean, se_burned = se, disturBurn = distur) 
+)
 ```
 
-# By Ecozone
+## Join burned to Unburned
 
-# By Biome
+### biome Depth difference
+(a - b)) / ((a + b) / 2) * 100%
 ```{r}
-( plotDepthChangeBiome = ggplot(depthChangeBiome, aes(x = tsfClass, y=depthChange)) +
-  geom_hline(yintercept=0, color="gray", size = 3, alpha = .5) + 
-   geom_point(color='#5e4fa2', size = 3, shape = 21) +
+( depthDiffBiome = burnedBiome %>% 
+    left_join(unburnedBiome, by=c("paired", "resBiome", "permaExtent")) %>%
+  drop_na(disturUnburn) %>%
+  mutate(depthDifference = mean_unburned-mean_burned,
+         percentDifference = (mean_unburned-mean_burned)/((mean_unburned + mean_burned)/2) * 100) %>%
+    mutate(permaName = ifelse(permaExtent=="C", "Continuous",
+                              ifelse(permaExtent=="D", "Discontinuous", "Sporadic"))) %>%
+    mutate(biomeRename = ifelse(resBiome=="Tundra", "Tundra", "Boreal"))
+)
+```
 
-      #scale_color_manual(values=c('#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02','#a6761d'), name="") +
-  scale_y_reverse() +
-    geom_errorbar(aes(ymin = ymin,ymax = ymax)) +
-  labs(x="Time since fire", y="Difference in depth (cm)") +
+```{r}
+depthDiffBiome$tsfClass = factor(depthDiffBiome$tsfClass, levels = c( "unburned", "0-3", "4-10", "11-20", "21-40", ">40"))
+```
+
+```{r}
+depthDiffBiome %>% 
+  group_by(biomeRename, permaName, tsfClass) %>%
+  summarise(gtZero = sum(depthDifference > 0, na.rm = TRUE),
+            ltZero = sum(depthDifference < 0, na.rm = TRUE))
+```
+
+## Ecozone Depth difference
+
+```{r}
+( depthDiffEcozone = burnedEcozone %>% 
+    left_join(unburnedEcozone, by=c("paired", "resName", "permaExtent")) %>%
+  drop_na(disturUnburn) %>%
+  mutate(depthDifference = mean_unburned-mean_burned,
+         percentDifference = (mean_unburned-mean_burned)/((mean_unburned + mean_burned)/2) * 100) %>%
+    mutate(permaName = ifelse(permaExtent=="C", "Continuous",
+                              ifelse(permaExtent=="D", "Discontinuous", "Sporadic"))) 
+
+)
+```
+
+      
+```{r}
+depthDiffEcozone$tsfClass = factor(depthDiffEcozone$tsfClass, levels = c( "unburned", "0-3", "4-10", "11-20", "21-40", ">40"))
+```
+
+# Figures
+
+## plots By Biome
+```{r}
+permafrost_palette = c('#71A6D1', '#99C4E1', '#C0E2F0')
+permafrost_palette2 = c('#88419d', '#8c6bb1','#8c96c6')
+permafrost_palette3 = c('#c994c7','#d4b9da', '#f1eef6') 
+permafrost_palette4 = c('#4b2665', '#8774ab', '#d4b9da')
+```
+
+```{r}
+( plotDepthDiffBiomeFreeAxis = ggplot(depthDiffBiome, aes(x = tsfClass, y=depthDifference, color=tsfClass)) +
+  geom_hline(yintercept=0, color="gray", size = 3, alpha = .5) + 
+   geom_boxplot( linewidth = .3, outlier.shape = NA) + #, size = 3, shape = 21
+  geom_jitter( size = 1, shape = 21) +
+      scale_color_manual(values=c('#082a54','#082a54','#082a54','#082a54','#082a54'), name="") +
+    stat_summary(fun=mean, geom="point", shape=23, size=2, color="#e02b35") +
+  #scale_y_reverse() +
+    #geom_errorbar(aes(ymin = ymin,ymax = ymax)) +
+  labs(x="Time since fire class (years)", y="Difference in depth (cm)") +
      #facet_grid(vars(resBiome), vars(permaExtent), scales="free") +
-  facet_wrap(~resBiome + permaExtent, scales = "free") +
+  facet_wrap(~biomeRename + permaName, scales = "free") +
+  comp_theme +
+    theme(legend.position = "none",
+          axis.text.y = element_text(size=5),
+          axis.text.x = element_text(size=5, angle=45),
+          strip.background = element_rect( color="white", fill="white", size=1.5, linetype="solid" )) +
+    theme(strip.text.x = element_text(size = 6))
+)
+```
+
+
+```{r}
+( plotDepthDiffBiomeStaticYaxis = depthDiffBiome %>% filter(depthDifference>-100) %>% 
+    ggplot(., aes(x = tsfClass, y=depthDifference, color=tsfClass)) +
+  geom_hline(yintercept=0, color="gray", size = 3, alpha = .5) + 
+   geom_boxplot( linewidth = .3, outlier.shape = NA) + #, size = 3, shape = 21
+  geom_jitter( size = 1, shape = 21) +
+      scale_color_manual(values=c('#082a54','#082a54','#082a54','#082a54','#082a54'), name="") +
+    stat_summary(fun=mean, geom="point", shape=23, size=2, color="#e02b35") +
+  #scale_y_reverse() +
+    #geom_errorbar(aes(ymin = ymin,ymax = ymax)) +
+  labs(x="Time since fire class (years)", y="Difference in depth (cm)") +
+     #facet_grid(vars(resBiome), vars(permaExtent), scales="free") +
+  facet_wrap(~biomeRename + permaName) +
+  comp_theme +
+    theme(legend.position = "none",
+          axis.text.y = element_text(size=5),
+          axis.text.x = element_text(size=5, angle=45),
+          strip.background = element_rect( color="white", fill="white", size=1.5, linetype="solid" )) +
+    theme(strip.text.x = element_text(size = 6))
+)
+```
+```{r}
+( plotPercentDiffBiome = depthDiffBiome %>% 
+    ggplot(., aes(x = tsfClass, y=percentDifference, color=tsfClass)) +
+  geom_hline(yintercept=0, color="gray", size = 3, alpha = .5) + 
+   geom_boxplot( linewidth = .3, outlier.shape = NA) + #, size = 3, shape = 21
+  geom_jitter( size = 1, shape = 21) +
+     scale_color_manual(values=c('#082a54','#082a54','#082a54','#082a54','#082a54'), name="") +
+    stat_summary(fun=mean, geom="point", shape=23, size=2, color="#e02b35") +
+  #scale_y_reverse() +
+    #geom_errorbar(aes(ymin = ymin,ymax = ymax)) +
+  labs(x="Time since fire class (years)", y="Percent difference") +
+     #facet_grid(vars(resBiome), vars(permaExtent), scales="free") +
+  facet_wrap(~biomeRename + permaName) +
+    ylim(-110, 60) +
   comp_theme +
     theme(legend.position = "none",
           axis.text.y = element_text(size=5),
@@ -111,13 +232,38 @@ depthChangeBiome$tsfClass = factor(depthChangeBiome$tsfClass, levels = c( "unbur
 ```
 
 ```{r}
-( plotDepthChange = ggplot(depthDifference, aes(x = tsfClass, y=depthDifference)) +
+( plotPercentDiffBiomeOutliers = depthDiffBiome %>% 
+    ggplot(., aes(x = tsfClass, y=percentDifference, color=tsfClass)) +
   geom_hline(yintercept=0, color="gray", size = 3, alpha = .5) + 
-   geom_point(color='#5e4fa2', size = 3, shape = 21) +
+   geom_boxplot( linewidth = .3, outlier.shape = NA) + #, size = 3, shape = 21
+  geom_jitter( size = 1, shape = 21) +
+     scale_color_manual(values=c('#082a54','#082a54','#082a54','#082a54','#082a54'), name="") +
+    stat_summary(fun=mean, geom="point", shape=23, size=2, color="#e02b35") +
+  #scale_y_reverse() +
+    #geom_errorbar(aes(ymin = ymin,ymax = ymax)) +
+  labs(x="Time since fire class (years)", y="Percent difference") +
+     #facet_grid(vars(resBiome), vars(permaExtent), scales="free") +
+  facet_wrap(~biomeRename + permaName) +
+   # ylim(-110, 60) +
+  comp_theme +
+    theme(legend.position = "none",
+          axis.text.y = element_text(size=5),
+          axis.text.x = element_text(size=5, angle=45),
+          strip.background = element_rect( color="white", fill="white", size=1.5, linetype="solid" )) +
+    theme(strip.text.x = element_text(size = 6))
+)
+```
 
-      #scale_color_manual(values=c('#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02','#a6761d'), name="") +
-  scale_y_reverse() +
-  labs(x="Time since fire Class", y="Difference in depth (cm)") +
+## Plot by Ecozone
+
+```{r}
+( plotDepthDiffEco = ggplot(depthDiffEcozone, aes(x = tsfClass, y=depthDifference, color=tsfClass)) +
+  geom_hline(yintercept=0, color="gray", size = 3, alpha = .5) + 
+    geom_boxplot( linewidth = .3, outlier.shape = NA) + #, size = 3, shape = 21
+  geom_jitter( size = 1, shape = 21) +
+      scale_color_manual(values=c('#082a54','#082a54','#082a54','#082a54','#082a54'), name="") +
+    stat_summary(fun=mean, geom="point", shape=23, size=2, color="#e02b35") +
+  labs(x="Time since fire Class (years)", y="Difference in depth (cm)") +
   facet_wrap(~resName, scales = "free") +
   comp_theme +
     theme(legend.position = "none",
@@ -128,6 +274,37 @@ depthChangeBiome$tsfClass = factor(depthChangeBiome$tsfClass, levels = c( "unbur
 )
 ```
 
+```{r}
+( plotPercentDiffEco = ggplot(depthDiffEcozone, aes(x = tsfClass, y=percentDifference, color=tsfClass)) +
+  geom_hline(yintercept=0, color="gray", size = 3, alpha = .5) + 
+    geom_boxplot( linewidth = .3, outlier.shape = NA) + #, size = 3, shape = 21
+  geom_jitter( size = 1, shape = 21) +
+      scale_color_manual(values=c('#082a54','#082a54','#082a54','#082a54','#082a54'), name="") +
+    stat_summary(fun=mean, geom="point", shape=23, size=2, color="#e02b35") +
+  labs(x="Time since fire Class (years)", y="Percent difference") +
+  facet_wrap(~resName) +
+  comp_theme +
+    theme(legend.position = "none",
+          axis.text.y = element_text(size=5),
+          axis.text.x = element_text(size=5, angle=45),
+          strip.background = element_rect( color="white", fill="white", size=1.5, linetype="solid" )) +
+    theme(strip.text.x = element_text(size = 6))
+)
+```
+
+# Save Figures
 ```{r eval=FALSE, include=FALSE}
-ggsave("../figures/AggregateDepthChangeTsfEcozone.png", plot = plotDepthChange,  width = 6, height =5, units = c("in"), dpi=600, bg = "white" )
+ggsave("../figures/DifferenceSiteDepthTsfBiomeFreeAxis.png", plot = plotDepthDiffBiomeFreeAxis,  width = 6, height =5, units = c("in"), dpi=600, bg = "white" )
+
+ggsave("../figures/DifferenceDepthTsfBiomeSameAxisoutliers.png", plot = plotDepthDiffBiomeStaticYaxis,  width = 6, height =5, units = c("in"), dpi=600, bg = "white" )
+
+ggsave("../figures/DifferencePercentTsfBiomeSameAxisDropoutliers.png", plot = plotPercentDiffBiome,  width = 6, height =5, units = c("in"), dpi=600, bg = "white" )
+
+ggsave("../figures/DifferencePercentTsfBiomeSameAxisOutliers.png", plot = plotPercentDiffBiomeOutliers,  width = 6, height =5, units = c("in"), dpi=600, bg = "white" )
+```
+
+```{r eval=FALSE, include=FALSE}
+ggsave("../figures/DifferenceDepthTsfEcozoneDynamicAxis.png", plot = plotDepthDiffEco,  width = 6, height =5, units = c("in"), dpi=600, bg = "white" )
+
+ggsave("../figures/DifferencePercentTsfEcozoneStaticAxis.png", plot = plotPercentDiffEco,  width = 6, height =5, units = c("in"), dpi=600, bg = "white" )
 ```

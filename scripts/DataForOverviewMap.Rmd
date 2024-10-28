@@ -33,14 +33,10 @@ library(ggnewscale)
 
 # Data
 
-## Points
+## Final datacube
 
 ```{r}
-datacubePts = st_read("../data/dataCube/PermafrostFireDataCube.shp", "PermafrostFireDataCube")
-```
-
-```{r}
-datacubePts
+dataFinal = read_csv("../data/dataCube/PermafrostFireDatacubeFinal.csv")
 ```
 
 ## Resolve
@@ -53,104 +49,23 @@ resolve = st_read("../data/spatialData/RESOLVE_Ecoregions_and_Biomes/Biomes_and_
 resolve
 ```
 
-## Permafrost
-
+## Function to make points
 ```{r}
-permafrost = st_read("../data/spatialData/permafrost/permaice.shp", "permaice")
-```
-
-```{r}
-permafrost
-```
-
-# Reproject
-
-```{r}
-permafrost_wgs = st_transform(permafrost, crs= st_crs(datacubePts))
+df_to_sf <- function(x){
+  st_as_sf(x, coords = c("lon","lat"), crs = 4326, remove = FALSE)
+}
 ```
 
 ```{r}
-permafrost_wgs
-```
-
-```{r}
-unique(permafrost_wgs$NUM_CODE)
-unique(permafrost_wgs$COMBO)
-unique(permafrost_wgs$RELICT)
-unique(permafrost_wgs$EXTENT)
-unique(permafrost_wgs$CONTENT)
-unique(permafrost_wgs$LANDFORM)
+pts = dataFinal %>% df_to_sf()
 ```
 
 
-# Add Resolve ecozones to points
-
-```{r}
-( resTunBor = resolve %>% 
-    filter(REALM %in% c("Palearctic", "Nearctic")) %>% 
-    dplyr::select(OBJECTID, ECO_NAME, BIOME_NUM, BIOME_NAME, REALM, ECO_ID, geometry) %>% 
-    filter(BIOME_NUM %in% c(11, 6)) %>%
-    rename(resId = OBJECTID, resName=ECO_NAME, resBiomNm = BIOME_NUM, resBiomeName = BIOME_NAME, resRealm = REALM,  resEcoId = ECO_ID)
-)
-```
-
-## Join eczones to points
-
-```{r}
-points = st_join(datacubePts, resTunBor) 
-```
-
-```{r}
-points
-```
-
-
-
-## Add Permafrost extent
-
-```{r}
-points_prj = st_transform(points, crs=st_crs(permafrost))
-```
-
-```{r}
-points_prj
-```
-
-```{r}
-pt_res_perma = st_join(points_prj, permafrost) 
-```
-
-```{r}
-( pt_res_perma_Rename = pt_res_perma %>% 
-  rename(permaCode = NUM_CODE, permaCombo =COMBO , permaRelict =RELICT , permaExtent= EXTENT, permaCont = CONTENT, permaLand = LANDFORM) )
-```
-
-```{r}
-permResPt_Wgs = st_transform(pt_res_perma_Rename, crs=4326)
-```
-
-```{r}
-permResPt_Wgs
-```
-
-```{r}
-unique(permResPt_Wgs$submitNm)
-```
-
-## Save 
-
-```{r eval=FALSE, include=FALSE}
-st_write(permResPt_Wgs, "../outputs/spatialDataCreate/PermafrostFireEcozoneDatacube.gpkg")
-```
-
-# Resolve Ecozones for Map
-
-## Summaries sites by 
+# Summaries sites by ecozone
 
 ```{r}
 (
-  resPtCt <- permResPt_Wgs %>% 
-    st_drop_geometry() %>%
+  resPtCt <- dataFinal %>% 
     group_by(resName) %>%
     summarise(count = n()) %>%
     mutate(total = sum(count)) %>%
@@ -159,22 +74,7 @@ st_write(permResPt_Wgs, "../outputs/spatialDataCreate/PermafrostFireEcozoneDatac
   )
 ```
 
-```{r}
-( ecoCentroidSummary <- permResPt_Wgs %>%
-                group_by(resName) %>%
-                summarise(st_union(geometry)) %>%
-                st_centroid() %>%
-  left_join(., resPtCt, by= 'resName') %>%
-  mutate(total = sum(count)) %>%
-  mutate(prop = round(count/total, 5)) %>%
-  mutate(percent = round(prop*100, 2)) %>%
-  dplyr::mutate(lon = sf::st_coordinates(.)[,1],
-                lat = sf::st_coordinates(.)[,2]) %>%
-  st_drop_geometry() %>%
-    drop_na(resName) 
-  )
 
-```
 
 
 
@@ -183,7 +83,7 @@ st_write(permResPt_Wgs, "../outputs/spatialDataCreate/PermafrostFireEcozoneDatac
 
 ### 1. "Arctic coastal tundra"
 
-```{r}
+```{r eval=FALSE, include=FALSE}
 res01 =  resTunBor %>% 
     filter(resName=='Arctic coastal tundra') %>%
     st_geometry() %>% # pull just geometry
@@ -196,25 +96,25 @@ res01 =  resTunBor %>%
 ### 2. "Arctic foothills tundra"
 
 ```{r}
-res02 =  resTunBor %>% 
-    filter(resName=='Arctic foothills tundra') %>%
+res02 =  resolve%>% 
+    filter(ECO_NAME=='Arctic foothills tundra') %>%
     st_geometry() %>% # pull just geometry
   st_combine() %>%  # from many points to a single multipoint
   st_centroid() %>% # compute centroid of the multipoint
   st_as_sf() %>% # make it a sf object again 
-  mutate(resName='Arctic foothills tundra')
+  mutate(ECO_NAME='Arctic foothills tundra')
 ```
 
 ### 3. "Beringia lowland tundra"
 
 ```{r}
-res03 =  resTunBor %>% 
-    filter(resName=='Beringia lowland tundra') %>%
+res03 =  resolve%>% 
+    filter(ECO_NAME=='Beringia lowland tundra') %>%
     st_geometry() %>% # pull just geometry
   st_combine() %>%  # from many points to a single multipoint
   st_centroid() %>% # compute centroid of the multipoint
   st_as_sf() %>% # make it a sf object again 
-  mutate(resName='Beringia lowland tundra')
+  mutate(ECO_NAME='Beringia lowland tundra')
 ```
 
 
@@ -224,13 +124,13 @@ res03 =  resTunBor %>%
 ### 4. "Beringia upland tundra" 
 
 ```{r}
-( res04 =  resTunBor %>% 
-    filter(resName=='Beringia upland tundra') %>%
+( res04 =  resolve%>% 
+    filter(ECO_NAME=='Beringia upland tundra') %>%
     st_geometry() %>% # pull just geometry
   st_combine() %>%  # from many points to a single multipoint
   st_centroid() %>% # compute centroid of the multipoint
   st_as_sf() %>% # make it a sf object again 
-  mutate(resName='Beringia upland tundra') )
+  mutate(ECO_NAME='Beringia upland tundra') )
 ```
 Longitude: -165.43798
 Latitude: 64.52649
@@ -238,131 +138,124 @@ Latitude: 64.52649
 ### 5. Chukchi Peninsula tundra 
 
 ```{r}
-res05 =  resTunBor %>% 
-    filter(resName=="Chukchi Peninsula tundra") %>%
+res05 =  resolve%>% 
+    filter(ECO_NAME=="Chukchi Peninsula tundra") %>%
     st_geometry() %>% # pull just geometry
   st_combine() %>%  # from many points to a single multipoint
   st_centroid() %>% # compute centroid of the multipoint
   st_as_sf() %>% # make it a sf object again 
-  mutate(resName="Chukchi Peninsula tundra")
+  mutate(ECO_NAME="Chukchi Peninsula tundra")
 ```
 
 ### 6. "East Siberian taiga" 
 
 ```{r}
-res06 =  resTunBor %>% 
-    filter(resName=="East Siberian taiga") %>%
+res06 =  resolve%>% 
+    filter(ECO_NAME=="East Siberian taiga") %>%
     st_geometry() %>% # pull just geometry
   st_combine() %>%  # from many points to a single multipoint
   st_centroid() %>% # compute centroid of the multipoint
   st_as_sf() %>% # make it a sf object again 
-  mutate(resName="East Siberian taiga")
+  mutate(ECO_NAME="East Siberian taiga")
 ```
 
 
 ### 7. "Interior Alaska-Yukon lowland taiga"
 
 ```{r}
-res07 =  resTunBor %>% 
-    filter(resName=='Interior Alaska-Yukon lowland taiga') %>%
+res07 =  resolve%>% 
+    filter(ECO_NAME=='Interior Alaska-Yukon lowland taiga') %>%
     st_geometry() %>% # pull just geometry
   st_combine() %>%  # from many points to a single multipoint
   st_centroid() %>% # compute centroid of the multipoint
   st_as_sf() %>% # make it a sf object again 
-  mutate(resName='Interior Alaska-Yukon lowland taiga')
+  mutate(ECO_NAME='Interior Alaska-Yukon lowland taiga')
 ```
 
 ### 8. "Interior Yukon-Alaska alpine tundra"
 
 ```{r}
-res08 =  resTunBor %>% 
-    filter(resName=='Interior Yukon-Alaska alpine tundra') %>%
+res08 =  resolve%>% 
+    filter(ECO_NAME=='Interior Yukon-Alaska alpine tundra') %>%
     st_geometry() %>% # pull just geometry
   st_combine() %>%  # from many points to a single multipoint
   st_centroid() %>% # compute centroid of the multipoint
   st_as_sf() %>% # make it a sf object again 
-  mutate(resName='Interior Yukon-Alaska alpine tundra')
+  mutate(ECO_NAME='Interior Yukon-Alaska alpine tundra')
 ```
 
 ### 9. "Muskwa-Slave Lake forests"
 
 ```{r}
-( res09 =  resTunBor %>% 
-    filter(resName=='Muskwa-Slave Lake taiga') %>%
+( res09 =  resolve%>% 
+    filter(ECO_NAME=='Muskwa-Slave Lake taiga') %>%
     st_geometry() %>% # pull just geometry
   st_combine() %>%  # from many points to a single multipoint
   st_centroid() %>% # compute centroid of the multipoint
   st_as_sf() %>% # make it a sf object again 
-  mutate(resName='Muskwa-Slave Lake taiga') 
+  mutate(ECO_NAME='Muskwa-Slave Lake taiga') 
   )
 ```
 
 ### 10. "Northeast Siberian taiga"
 
 ```{r}
-res10=  resTunBor %>% 
-    filter(resName=='Northeast Siberian taiga') %>%
+res10=  resolve%>% 
+    filter(ECO_NAME=='Northeast Siberian taiga') %>%
     st_geometry() %>% # pull just geometry
   st_combine() %>%  # from many points to a single multipoint
   st_centroid() %>% # compute centroid of the multipoint
   st_as_sf() %>% # make it a sf object again 
-  mutate(resName='Northeast Siberian taiga')
+  mutate(ECO_NAME='Northeast Siberian taiga')
 ```
 
 ### 11. "Northern Canadian Shield taiga"
 
 ```{r}
-res11=  resTunBor %>% 
-    filter(resName=='Northern Canadian Shield taiga') %>%
+res11=  resolve%>% 
+    filter(ECO_NAME=='Northern Canadian Shield taiga') %>%
     st_geometry() %>% # pull just geometry
   st_combine() %>%  # from many points to a single multipoint
   st_centroid() %>% # compute centroid of the multipoint
   st_as_sf() %>% # make it a sf object again 
-  mutate(resName='Northern Canadian Shield taiga')
+  mutate(ECO_NAME='Northern Canadian Shield taiga')
 ```
 
 ### 12. "Northwest Territories taiga"
 
 ```{r}
-( res12=  resTunBor %>% 
-    filter(resName=='Northwest Territories taiga') %>%
+( res12=  resolve%>% 
+    filter(ECO_NAME=='Northwest Territories taiga') %>%
     st_geometry() %>% # pull just geometry
   st_combine() %>%  # from many points to a single multipoint
   st_centroid() %>% # compute centroid of the multipoint
   st_as_sf() %>% # make it a sf object again 
-  mutate(resName='Northwest Territories taiga')
+  mutate(ECO_NAME='Northwest Territories taiga')
 )
 ```
 
 ### 13. "Yamal-Gydan tundra"
 
 ```{r}
-res13 =  resTunBor %>% 
-    filter(resName=="Yamal-Gydan tundra") %>%
+res13 =  resolve%>% 
+    filter(ECO_NAME=="Yamal-Gydan tundra") %>%
     st_geometry() %>% # pull just geometry
   st_combine() %>%  # from many points to a single multipoint
   st_centroid() %>% # compute centroid of the multipoint
   st_as_sf() %>% # make it a sf object again 
-  mutate(resName="Yamal-Gydan tundra")
+  mutate(ECO_NAME="Yamal-Gydan tundra")
 ```
 
 ## Recombine ecoregions
 
 ```{r}
 ( 
-  resCentroid = bind_rows(res01, res02, res03, res04, res05, res06, res07, res08, res09, res10, res11, res12, res13) %>% 
+  resCentroid = bind_rows(res02, res03, res04, res05, res06, res07, res08, res09, res10, res11, res12, res13) %>% 
     rename(geometry = x)
 )
 ```
  
-## Edit geometry of 'Arctic coastal tundra' because of overalp
 
--142.3674 70.75167
-```{r eval=FALSE, include=FALSE}
-st_geometry(resCentroid) <- st_sfc(
-    ifelse(resCentroid$resName == 'Arctic coastal tundra', st_sfc(st_point(c(-142.3674, 70.75167))), resCentroid$geometry),
-    crs = st_crs(resCentroid$geometry))
-```
 
 ```{r}
 resCentroid
@@ -381,6 +274,7 @@ polarProj = "+proj=stere +lat_0=90 +lat_ts=70 +lon_0=-45 +x_0=0 +y_0=0 +datum=WG
 
 ```{r}
 ( resCentroidreproj = resCentroid %>% 
+    rename(resName=ECO_NAME) %>%
     st_transform(., crs = polarProj) %>% 
     dplyr::mutate(x = sf::st_coordinates(.)[,1],
                 y = sf::st_coordinates(.)[,2]) %>%

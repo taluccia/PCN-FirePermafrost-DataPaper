@@ -141,9 +141,10 @@ max(tempThaw$TempC)
 ```{r}
 ( thawPlot = 
     ggplot(tempThaw, mapping = aes(x = TempDoy, y = TempC)) + 
+    geom_hline(yintercept=0, color="gray", size = 3, alpha = .5) +
     geom_line(color='#006D5B')+
    scale_y_continuous(
-      name = (expression("Temperature " ( degree*C))), breaks = c(-35, -30,-15, 0, 15, 30), labels = c("","-30", "-15", "0", "15", "30"),
+      name = (expression("Air temperature " ( degree*C))), breaks = c(-35, -30,-15, 0, 15, 30), labels = c("","-30", "-15", "0", "15", "30"),
       sec.axis = dup_axis( name="Depth (cm)", breaks=c(0,-15, -30, -35), labels = c("0","30", "60", ""))) +
   geom_segment(aes(x = 161, y = 0, xend =161, yend = -17), color="black", size=1) +
   geom_segment(aes(x = 285, y = 0, xend = 285, yend = -32.5), color="black", size=1) +
@@ -169,23 +170,24 @@ max(tempThaw$TempC)
 ```{r}
 ( activePlot = 
     ggplot(tempActive, mapping = aes(x = TempDoy, y = TempC)) + 
+    geom_hline(yintercept=0, color="gray", size = 3, alpha = .5) +
     geom_line(color='#006D5B')+
    scale_y_continuous(
-      name = (expression("Temperature " ( degree*C))), breaks = c(-35, -30,-15, 0, 15, 30), labels = c("","-30", "-15", "0", "15", "30"),
+      name = (expression("Air temperature " ( degree*C))), breaks = c(-35, -30,-15, 0, 15, 30), labels = c("","-30", "-15", "0", "15", "30"),
       sec.axis = dup_axis( name="Depth (cm)", breaks=c(0,-15, -30, -35), labels = c("0","75", "150", ""))) +
   geom_segment(aes(x = 254, y = 0, xend =254, yend = -25.4), color="black", size=1) +
   geom_segment(aes(x = 285, y = 0, xend = 285, yend = -26.6), color="black", size=1) +
     # Point1
     new_scale_color() +
     geom_point(data = scaleActivePt, aes(x=Doy, y=depthScale, fill=type, color=type),  size = 4, pch=21, stroke =1.8) +# 40
-          scale_fill_manual(name="", values=c( "#3b5a9d", "#FEC287FF"))  +
-          scale_color_manual(name="", values = c( "grey79", "black")) +
+          scale_fill_manual(name="", values=c( "#3b5a9d", "#FEC287FF"), breaks = c("msrDepth", "predDepth"), labels = c("Measured thaw depth","Estimated ALT"))  +
+          scale_color_manual(name="", values = c( "grey79", "black"), breaks = c("msrDepth", "predDepth"), labels = c("Measured thaw depth","Estimated ALT")) +
 
     
     xlab("Day of year") +
     
   theme_light() +
-    theme(legend.position = c(.88, .83), 
+    theme(legend.position = "bottom", 
           plot.margin = margin(t=5, b=0, r=20, l=5, "mm"),
           legend.margin =margin(r=1,l=1,t=1,b=1, "mm")) +  
 
@@ -194,7 +196,8 @@ max(tempThaw$TempC)
         axis.text.x = element_text(size = 9, color = "black"),
         axis.text.y = element_text(size = 9, color = "black"), 
         legend.text=element_text(size=7)) +
-    guides(shape = guide_legend(override.aes = list(size = 1)))
+    guides(shape = guide_legend(override.aes = list(size = 1)),
+            fill=guide_legend(ncol=2,byrow=TRUE))
 
   ) 
 

@@ -5,19 +5,21 @@ date: "2024-01-31"
 output: html_document
 ---
 
-
-
 # clear environment
+
 ```{r}
 rm(list=ls())
 ```
 
 
 # Overview
+
 Creat over view map with permafrost extent and summary of site data.
 Notes:From PCN-Fire-Sysnthesis "Manuscript Map"
 [Better colors for Mapping](https://www.esri.com/arcgis-blog/products/js-api-arcgis/mapping/better-colors-for-better-mapping/)
+
 # Packages
+
 ```{r}
 library(tidyverse)
 library(sf)
@@ -41,28 +43,14 @@ polarProj = "+proj=stere +lat_0=90 +lat_ts=70 +lon_0=-45 +x_0=0 +y_0=0 +datum=WG
 
 
 # Data
+
 ```{r}
-datacube = st_read("../data/dataCube/PermafrostFireEcozoneDatacube.shp", "PermafrostFireEcozoneDatacube")
-```
-```{r}
-datacube
-```
-```{r}
-wwf = st_read("../data/spatialDataCreate/wwfEcoregionCentroid.shp", "wwfEcoregionCentroid")
+centroids = st_read("../outputs/spatialDataCreate/EcozoneResCentroids.gpkg")
 ```
 
 ```{r}
-wwf
+centroids
 ```
-
-```{r}
-res = st_read("../data/spatialDataCreate/resEcozoneCentroid.shp", "resEcozoneCentroid")
-```
-
-```{r}
-res
-```
-
 
 ## World map
 https://datacatalog.worldbank.org/dataset/world-bank-official-boundaries
@@ -124,11 +112,10 @@ permafrost1 = permafrost %>%
 
 ```{r}
 nh_pp = st_transform(nh, crs = polarProj)
-datacube_pp = st_transform(datacube, crs = polarProj)
+
 artic_pp = st_transform(arctic, crs = polarProj)
 permafrost1_pp = st_transform(permafrost1, crs = polarProj)
-wwf_pp = st_transform(wwf, crs = polarProj)
-res_pp = st_transform(res, crs = polarProj)
+
 ```
 
 ```{r}
@@ -143,11 +130,12 @@ nh_cropped <- st_crop(nh_pp, xmin = -180, xmax = 180,
 # Palettes
 [More Palette options for R](https://stackoverflow.com/questions/9563711/r-color-palettes-for-many-data-classes)
 ```{r}
-ecoPalette = c('#a6cee3','#1f78b4',"#00bfa0",'#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00',"#dc0ab4",'#b2df8a','#ffff99', '#CC6677', '#DDCC77')
+ecoPalette1 = c('#a6cee3','#1f78b4',"#00bfa0",'#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00',"#dc0ab4",'#b2df8a','#ffff99', '#CC6677', '#DDCC77')
 ```
 
-("#e60049", "#0bb4ff", "#50e991", "#e6d800", "#9b19f5", "#ffa300",  "#b3d4ff")
-
+```{r}
+ecoPalette = c('#ff7f00','#1f78b4',"#00bfa0",'#fb9a99','#e31a1c','#33a02c','#a6cee3',"#dc0ab4",'#b2df8a','#bebada', '#CC6677', '#b15928')
+```
 
 ```{r}
 permafrost_palette = c('#71A6D1', '#99C4E1', '#C0E2F0')
@@ -156,52 +144,9 @@ permafrost_palette3 = c('#c994c7','#d4b9da', '#f1eef6')
 permafrost_palette4 = c('#4b2665', '#8774ab', '#d4b9da')
 ```
 
-```{r}
-brltnd_palette = c('#4a6741', '#3d3021')
-```
-xlim = c(-3302324, 2312498), ylim = c(-1108650,  3102452) 
-ymin: -25426070 xmax: 28628080 ymax: 8108557
- xmin:  ymin:  xmax:  ymax: 
- 
- scale_color_manual(values = c("A" ="#fdae61","B" = "#ff6347", "C" = "#fee08b"), labels = c( "A" ="Tweedsmuir fire","B" = "Entiako fire", "C" = "Chelaslie fire" ), name = "Fire perimeters") +
-
 # Maps
 
 ## Zoom Level
-```{r}
-zoom_to <- c(0, 90)  # Geographic North pole
-
-zoom_level <- 3
-
-lon_span <- 360 / 2^zoom_level
-lat_span <- 180 / 2^zoom_level
-```
-
-```{r}
-lon_bounds <- c(zoom_to[1] - lon_span / 2, zoom_to[1] + lon_span / 2)
-lat_bounds <- c(zoom_to[2] - lat_span / 2, zoom_to[2] + lat_span / 2)
-```
-coord_sf(xlim = lon_bounds, ylim = lat_bounds) +
-## Display window 
-```{r}
-# corner points at bottom left and top right
-# supply as WGS84 and directly transform to target CRS (Mollweide)
-cornerpts <- data.frame(label = c('A', 'B'))
-cornerpts$geometry <- st_transform(st_sfc(st_point(c(279.26, 33.92)), st_point(c(102.34, 31.37)),
-                                          crs = 4326),
-                                   crs = polarProj)
-cornerpts <- st_as_sf(cornerpts)
-```
-
-```{r}
-disp_win_wgs84 <- st_sfc(st_point(c(279.26, 33.92)), st_point(c(102.34, 31.37)), crs = 4326)
-disp_win_wgs84
-
-disp_win_trans <- st_transform(disp_win_wgs84, crs = polarProj)
-disp_win_trans
-
-disp_win_coord <- st_coordinates(disp_win_trans)
-```
 
 ```{r}
 #### zoom to kamchatka, different projection ####
@@ -225,24 +170,18 @@ disp_window <- st_sfc(st_point(st_coordinates(zoom_to_xy - c(x_span / 2, y_span 
                       crs = target_crs)
 
 ```
-## Data check 
-```{r}
-wwf_pp
-```
-
-```{r}
-datacube_pp
-```
-
 
 # Build Overview map by Ecozone
 
 
 ## with Resolve Ecozones
+```{r}
+centroids
+```
 
 ```{r}
 ( overviewMapRes = ggplot() +
-      geom_sf(data = nh_pp, fill = "#F9F6EE", colour="#F9F6EE") +
+      geom_sf(data = nh_pp, fill = "#A9AB9D", colour="#A9AB9D") +
     geom_sf(data = permafrost1_pp, aes(fill = EXTENT, color= EXTENT)) +
  
   geom_sf(data=artic_pp, fill=NA, colour = "black", lwd=1, linetype="dashed") +
@@ -253,8 +192,8 @@ datacube_pp
   new_scale_fill() +
    new_scale_color() +
     
-   geom_sf(data = res, aes(fill = resName, color=resName, size=prctLabel),  pch=21, stroke =1, alpha=.75) +
-  geom_sf_text(data = res, aes(label = prct), size=2) +
+   geom_sf(data = centroids, aes(fill = resName, color=resName, size=percent),  pch=21, stroke =1, alpha=.75) +
+  geom_sf_text(data = centroids, aes(label = percent), size=2) +
     scale_fill_manual(values=ecoPalette) +
   scale_color_manual(values=c("black", "black", "black","black","black","black","black","black","black","black","black","black","black")) +
   scale_size(range = c(6, 11), # point size range
@@ -263,7 +202,7 @@ datacube_pp
 
   coord_sf(xlim = st_coordinates(disp_window)[,'X'], ylim = st_coordinates(disp_window)[,'Y']) +
  theme(panel.grid.major = element_line(color = gray(0.5), linetype = "solid", size = 0.3), 
-        panel.background = element_rect(fill = "#A9AB9D"),
+        panel.background = element_rect(fill = "#f0f8ff"),
         plot.margin=unit(c(0,0,0,0), "mm"),
         legend.key=element_blank(),
         legend.position = "none",        
@@ -276,20 +215,18 @@ datacube_pp
 ```
 
 ## Create legends
-
-###  Resolve Legend Bottom
-
 ```{r}
-res
+centroids
 ```
+###  Resolve Legend Bottom
 
 ```{r}
 ( resEcoLegendBottom = ggplot() +
      geom_sf(data = nh_pp, fill = "#F9F6EE", colour="#A9AB9D") +
    
  new_scale_fill() +
-   geom_sf(data = res, aes(fill = resName, color=resName),  pch=21, stroke =1.8, alpha=.75) +
-  geom_sf_text(data = res, aes(label = prctLabel), size=2) +
+   geom_sf(data = centroids, aes(fill = resName, color=resName),  pch=21, stroke =1.8, alpha=.75) +
+  geom_sf_text(data = centroids, aes(label = percent), size=2) +
     scale_fill_manual(name="Ecozones", values=ecoPalette) +
   scale_color_manual(name="Ecozones", values=c("black", "black", "black","black","black","black","black","black","black","black","black","black","black")) +
 
@@ -347,23 +284,23 @@ legend_permafrostBottom = cowplot::get_legend(permafrostLegendBottom)
 legendBottomRes = cowplot::get_legend(resEcoLegendBottom)
 ```
 
-## Combine Bottom Legends for Resolve Ecozones
+### Combine Bottom Legends for Resolve Ecozones
 
 ```{r}
 # 4.1 setup legends grid
 legendGridRes <- cowplot::plot_grid(legendBottomRes, align = "v", nrow = 2)
 
 # 4.2 add second legend to grid, specifying its location
-( legendBottomRes <- legendGridRes +
+( combinelegend <- legendGridRes +
   ggplot2::annotation_custom(
     grob = legend_permafrostBottom,
-    xmin = 0.21, xmax = 0.21, ymin = 0.64, ymax = 0.64
+    xmin = 0.31, xmax = 0.31, ymin = 0.64, ymax = 0.64
   )
 )
 ```
 
 ```{r eval=FALSE, include=FALSE}
-ggsave("../figures/legends/legendBottomResolve.png", plot = legendBottomRes, dpi = 600,  bg='white')
+ggsave("../figures/legends/legendBottomResolve.png", plot = combinelegend, dpi = 600,  bg='white')
 ```
 
 # Combine Map and Legend
@@ -374,10 +311,11 @@ ggsave("../figures/legends/legendBottomResolve.png", plot = legendBottomRes, dpi
 ```{r fig.height=6, fig.width=6}
 MapBottomLegendResolve = ggdraw(xlim = c(0, 6), ylim = c(0, 6)) +
     draw_plot(overviewMapRes, x = 0, y = 0, width = 6, height = 6) + 
-  draw_image("../images/legendBottomResolve.PNG", scale = 0.99, x = .2, y = -0.1, width = 6, height = 1) 
+  draw_image("../images/legendBottomResolve.PNG", scale = 1.35, x = .2, y = 0.1, width = 6, height = .8) 
 ```
 
 ### Save Image
+
 ```{r eval=FALSE, include=FALSE}
 ggsave("../figures/PCNMapOverviewBottomLegendResolve.png", plot = MapBottomLegendResolve, dpi = 600, width = 6, height = 6, bg='white')
 ```

@@ -271,10 +271,9 @@ ggsave("../figures/EcozoneResMap.png", plot = ecozoneMap, units = c("in"), dpi=6
 
 ```{r}
 ( resEcoLegendBottom = ggplot() +
-      geom_sf(data = nh_pp, fill = "#F9F6EE", colour="#F9F6EE") +
-    geom_sf(data = resolveAllpp, fill = "#F9F6EE", color= "#A9AB9D") +
-    geom_sf(data = resolve1_pp, aes(fill = ECO_NAME),lwd = 0, alpha=.9) +
- 
+       geom_sf(data = nh_pp, fill = "#F9F6EE", colour="#F9F6EE") +
+    geom_sf(data = resolveAllpp, fill = "#A9AB9D", color= "#F9F6EE") +
+    geom_sf(data = resolve1_pp, aes(fill = ECO_NAME), color= "#F9F6EE", alpha=.9) +
   geom_sf(data=artic_pp, fill=NA, colour = '#3d3021', lwd=.5, linetype="dashed") +
     scale_fill_manual(values = ecoPalette, name = "Ecozones") +
     #scale_color_manual(values = ecoPalette, name = "Ecozones") +
@@ -286,9 +285,9 @@ ggsave("../figures/EcozoneResMap.png", plot = ecozoneMap, units = c("in"), dpi=6
         panel.background = element_rect(fill = "#f0f8ff"),
         plot.margin=unit(c(0,0,0,0), "mm")) + 
   theme(legend.position = "bottom",
-         legend.text=element_text(size=8),
+         legend.text=element_text(size=11),
         legend.margin = margin(0, 0, 0, 0),
-        legend.title=element_text(size=9),
+        legend.title=element_text(size=12),
          legend.key=element_blank(),
         legend.key.size = unit(5, 'mm'),
         axis.title.x = element_blank(), 
@@ -398,18 +397,54 @@ datacubePred$resBiome[datacubePred$resBiome == "Boreal Forests/Taiga"] <- "Borea
 ```
 
 
-
 ```{r}
 
-( plot_na = ggplot(northAmer, aes(predDepth, colour = resName)) +
-  geom_freqpoly(binwidth = 10) +
-  facet_grid(vars(resBiome), vars(distur), scales = "free") +
+( plot_na_combDis = ggplot(northAmer, aes(predDepth, colour = resName, lintype=distur)) +
+  geom_freqpoly(binwidth = 10, aes(linetype = distur)) +
+  facet_wrap(vars(resBiome),   scales = "free") +
+    scale_linetype_manual(values=c("solid", "dashed")) +
    scale_color_manual(values = c('#ff7f00', '#1f78b4', "#00bfa0", '#33a02c','#a6cee3', "#dc0ab4", '#bebada', '#CC6677'), name="Ecozones") +
   comp_theme +
   theme(strip.background = element_rect(color="white", fill="white", size=1.5, linetype="solid"),
           strip.text.x = element_text(size = 8), 
           panel.spacing = unit(0,'lines')) +
-  labs(x='Depth (cm)', y='Count') +
+  labs(x='Active layer thickness (cm)', y='Count') +
+  scale_x_continuous(expand=c(0,0)) +
+  scale_y_sqrt() +
+  #scale_y_continuous(expand=c(0,0)) +
+  theme(panel.spacing = unit(.5, "lines"))
+)
+```
+
+```{r}
+
+( plot_na = ggplot(northAmer, aes(predDepth, colour = resName, lintype=distur)) +
+  geom_freqpoly(binwidth = 10) +
+  facet_grid(vars(resBiome), vars(distur),  scales = "free_y") +
+   scale_color_manual(values = c('#ff7f00', '#1f78b4', "#00bfa0", '#33a02c','#a6cee3', "#dc0ab4", '#bebada', '#CC6677'), name="Ecozones") +
+  comp_theme +
+  theme(strip.background = element_rect(color="white", fill="white", size=1.5, linetype="solid"),
+          strip.text.x = element_text(size = 8), 
+          panel.spacing = unit(0,'lines')) +
+  labs(x='Active layer thickness (cm)', y='Count') +
+  scale_x_continuous(expand=c(0,0)) +
+  scale_y_sqrt() +
+  #scale_y_continuous(expand=c(0,0)) +
+  theme(panel.spacing = unit(.5, "lines"))
+)
+```
+
+```{r}
+( plot_asia_combDis =  ggplot(asia, aes(predDepth, colour = resName)) +
+  geom_freqpoly(binwidth = 10, aes(linetype = distur)) +
+  facet_wrap(vars(resBiome), scales = "free") +
+    scale_linetype_manual(values=c("solid", "dashed")) +
+   scale_color_manual(values = c('#fb9a99','#e31a1c', '#b2df8a', '#b15928'), name="Ecozones") +
+  comp_theme +
+  theme(strip.background = element_rect(color="white", fill="white", size=1.5, linetype="solid"),
+          strip.text.x = element_text(size = 8), 
+          panel.spacing = unit(0,'lines')) +
+  labs(x='Active layer thickness (cm)', y='Count') +
   scale_x_continuous(expand=c(0,0)) +
   scale_y_sqrt() +
   #scale_y_continuous(expand=c(0,0)) +
@@ -420,13 +455,13 @@ datacubePred$resBiome[datacubePred$resBiome == "Boreal Forests/Taiga"] <- "Borea
 ```{r}
 ( plot_asia =  ggplot(asia, aes(predDepth, colour = resName)) +
   geom_freqpoly(binwidth = 10) +
-  facet_grid(vars(resBiome), vars(distur), scales = "free") +
+  facet_grid(vars(resBiome), vars(distur), scales = "free_y") +
    scale_color_manual(values = c('#fb9a99','#e31a1c', '#b2df8a', '#b15928'), name="Ecozones") +
   comp_theme +
   theme(strip.background = element_rect(color="white", fill="white", size=1.5, linetype="solid"),
           strip.text.x = element_text(size = 8), 
           panel.spacing = unit(0,'lines')) +
-  labs(x='Depth (cm)', y='Count') +
+  labs(x='Active layer thickness (cm)', y='Count') +
   scale_x_continuous(expand=c(0,0)) +
   scale_y_sqrt() +
   #scale_y_continuous(expand=c(0,0)) +
@@ -435,214 +470,59 @@ datacubePred$resBiome[datacubePred$resBiome == "Boreal Forests/Taiga"] <- "Borea
 ```
 
  
-```{r eval=FALSE, include=FALSE}
-( plot_naBoreal = northAmer %>% filter(resBiome!="Tundra") %>%
-ggplot(., aes(predDepth, colour = resName)) +
-  geom_freqpoly(binwidth = 10) +
-  facet_wrap(~resBiome + distur, scales = "free", ncol = 2) +
-   scale_color_manual(values = c('#33a02c', "#dc0ab4", '#bebada', '#CC6677'), name="Ecozones") +
-  comp_theme +
-  theme(strip.background = element_rect(color="white", fill="white", size=1.5, linetype="solid"),
-          strip.text.x = element_text(size = 10), 
-          panel.spacing = unit(0,'lines')) +
-  labs(x='Depth (cm)', y='Count') +
-  scale_x_continuous(expand=c(0,0)) +
-  scale_y_sqrt() +
-  #scale_y_continuous(expand=c(0,0)) +
-  theme(panel.spacing = unit(.5, "lines"))
-)
-```
-
-```{r eval=FALSE, include=FALSE}
-plot_naTundra = northAmer %>% filter(resBiome=="Tundra") %>%
-ggplot(., aes(predDepth, colour = resName)) +
-  geom_freqpoly(binwidth = 10) +
-  facet_wrap(~resBiome + distur, scales = "free", ncol = 2) +
-   scale_color_manual(values = c('#ff7f00', '#1f78b4', "#00bfa0", '#a6cee3'), name="Ecozones") +
-  comp_theme +
-  theme(strip.background = element_rect(color="white", fill="white", size=1.5, linetype="solid"),
-          strip.text.x = element_text(size = 10), 
-          panel.spacing = unit(0,'lines')) +
-  labs(x='Depth (cm)', y='Count') +
-  scale_x_continuous(expand=c(0,0)) +
-  scale_y_sqrt() +
-  #scale_y_continuous(expand=c(0,0)) +
-  theme(panel.spacing = unit(.5, "lines"))
-```
-
-```{r eval=FALSE, include=FALSE}
-( plot_asiaBoreal = asia %>% filter(resBiome!="Tundra") %>%
-ggplot(., aes(predDepth, colour = resName)) +
-  geom_freqpoly(binwidth = 10) +
-  facet_wrap(~resBiome + distur, scales = "free", ncol = 2) +
-   scale_color_manual(values = c('#e31a1c', '#b2df8a'), name="Ecozones") +
-  theme_bw() +
-  theme(strip.background = element_rect(color="white", fill="white", size=1.5, linetype="solid"),
-          strip.text.x = element_text(size = 10), 
-          panel.spacing = unit(0,'lines')) +
-  labs(x='Depth (cm)', y='Count') +
-  scale_x_continuous(expand=c(0,0)) +
-  scale_y_sqrt() +
-  #scale_y_continuous(expand=c(0,0)) +
-  theme(panel.spacing = unit(.5, "lines"))
-)
-```
-
-
-```{r eval=FALSE, include=FALSE}
-plot_asiaTundra = asia %>% filter(resBiome=="Tundra") %>%
-ggplot(., aes(predDepth, colour = resName)) +
-  geom_freqpoly(binwidth = 10) +
-  facet_wrap(~resBiome + distur, scales = "free", ncol = 2) +
-   scale_color_manual(values = c('#fb9a99', '#b15928'), name="Ecozones") +
-  
-  theme_bw() +
-  theme(strip.background = element_rect(color="white", fill="white", size=1.5, linetype="solid"),
-          strip.text.x = element_text(size = 10), 
-          panel.spacing = unit(0,'lines')) +
-  labs(x='Depth (cm)', y='Count') +
-  scale_x_continuous(expand=c(0,0)) +
-  scale_y_sqrt() +
-  #scale_y_continuous(expand=c(0,0)) +
-  theme(panel.spacing = unit(.5, "lines"))
-
-```
 
 # Grid
 
 ### Grid map with legend Bottom
 
 ```{r}
-( topRow = cowplot::plot_grid(plot_na, plot_asia, labels=c("A", "B"), ncol=1) )
-( bottomRow = cowplot::plot_grid(resEcoLegendBottom, labels=c("C"), ncol=1) )
-```
-
-
-
-
-```{r}
 ( leftSide = cowplot::plot_grid(plot_na, plot_asia, labels=c("A", "B"), ncol=1) )
 ```
 
 ```{r}
-( rightSide = cowplot::plot_grid(ecozoneMap, legendBottom, ncol = 1, rel_heights = c(.8, .1), labels = c("C", "")) )
+( leftSide_combineDist = cowplot::plot_grid(plot_na_combDis, plot_asia_combDis, labels=c("A", "B"), ncol=1) )
 ```
 
 ```{r}
-cowplot::plot_grid(leftSide, ecozoneMap, nrow=1, rel_widths = c(1.1, .9))
-```
-
-```{r}
-ggdraw(xlim = c(0, 8), ylim = c(0, 4)) +
+( DataDistributuionMap = ggdraw(xlim = c(0, 8), ylim = c(0, 4)) +
     draw_plot(leftSide, x = 0, y = 0, width = 4, height = 4) + 
-  draw_image("../figures/EcozoneMapAndLegendBottom.png", scale = 1, x = 4.1, y = 1, width = 3, height = 3) 
+  draw_image("../figures/EcozoneMapAndLegendBottom.png", scale = 1.05, x = 4.05, y = 0, width = 4, height = 4) +
+  draw_plot_label(
+  label="C",
+  x = 3.9,
+  y = 4.01)
+)
 ```
 
-```{r eval=FALSE, fig.height=6, fig.width=6, include=FALSE}
-gridEcoHistMap = ggdraw(xlim = c(0, 6), ylim = c(0, 6)) +
-    draw_plot(histEco, x = 0, y = 0, width = 6, height = 5) + 
-  draw_image("../images/EcozoneResMap.png", scale = 0.8, x = 2, y = -0.3, width = 2, height = 2) +
-  draw_image("../images/EcozoneLegendRight.png", scale = 1, x = 4, y = 0, width = 2, height = 2)
+```{r}
+( DataDistributuionMap_CombDist = ggdraw(xlim = c(0, 9), ylim = c(0, 5)) +
+    draw_plot(leftSide_combineDist, x = 0, y = 0, width = 5, height = 5) + 
+  draw_image("../figures/EcozoneMapAndLegendBottom.png", scale = 1.05, x = 5.05, y = 1.1, width = 4, height = 4) +
+  draw_plot_label(
+  label="C",
+  x = 5.4,
+  y = 5.01)
+)
 ```
 
+
+```{r}
+( DataDistributuionMap_CombDist = ggdraw(xlim = c(0, 6), ylim = c(0, 7)) +
+    draw_plot(leftSide_combineDist, x = 0, y = 3, width = 6, height = 4) + 
+  draw_image("../figures/EcozoneMapAndLegendBottom.png", scale = 1.05, x = 2, y = 0, width = 4, height = 4) +
+  draw_plot_label(
+  label="C",
+  x = 2.,
+  y = 2)
+)
+```
 ### Save Image
 
 ```{r eval=FALSE, include=FALSE}
-ggsave("../figures/EcozoneHistMap.png", plot = gridEcoHistMap, dpi = 600, width = 6, height = 6, bg='white')
+ggsave("../figures/EcozoneDataDistributionMap.png", plot = DataDistributuionMap, dpi = 600, width = 8, height = 4.5, bg='white')
 ```
 
-
-# EXTRA 
-
-
-```{r}
-( resArea = resolve1_pp %>% dplyr::mutate(area_meters = st_area(resolve1_pp),
-                # 1 m2 = 0.0.000247105 acres
-                area_acres = area_meters * 0.000247105,
-                # 1m2 = 0.0001 hectares
-                area_hectares = area_meters * 0.0001) %>%
-    dplyr::select(ECO_NAME, area_hectares) %>%
-    rename(resName=ECO_NAME) %>%
-    st_drop_geometry()
-    )
-```
-
-
-
-theme_set(theme_ridges())
-
-```{r}
-datacubePred
-max(datacubePred$predDepth)
-( datacube1 = datacubePred %>% filter(predDepth<350) )
-max(datacube1$predDepth)
-```
-# Add marginal rug
-ggplot(iris, aes(x = Sepal.Length, y = Species)) +
-  geom_density_ridges(
-    jittered_points = TRUE,
-    position = position_points_jitter(width = 0.05, height = 0),
-    point_shape = '|', point_size = 3, point_alpha = 1, alpha = 0.7,
-  )
-```{r}
-( densityPlot = ggplot(datacube1, aes(x = predDepth, y = resName, fill = resName, height = after_stat(density))) +
-  geom_density_ridges(aes(fill = resName),stat = "density", alpha=.75 , scale = 3) +
-  scale_fill_manual(values = ecoPalette, name = "Ecozones") +
-  scale_x_continuous(expand = c(0, 0)) +
-  scale_y_discrete(expand = expansion(mult = c(0.01, .1))) +
-  theme_ridges() +
-   theme(legend.position = "none") +
-  labs(x= 'Depth (cm)', y="")
-)
-  
-```
-
-
-  
-jittered_points = TRUE,
-    position = position_points_jitter(width = 0.05, height = 0),
-    point_shape = '|', point_size = 3, point_alpha = 1, alpha = 0.7,
-  )
-  
-```{r}
-( densityHistogram = ggplot(datacube1, aes(x = predDepth, y = resName, fill = resName, height = after_stat(density))) +
-  geom_density_ridges(aes(fill = resName), stat = "binline", bins = 20, scale = 0.95,
-    draw_baseline = FALSE, alpha=.75 , scale = 3, position = position_points_jitter(width = 0.05, height = 0),
-    point_shape = '|', point_size = 3, point_alpha = 1) +
-  scale_fill_manual(values = ecoPalette, name = "Ecozones") +
-  scale_x_continuous(expand = c(0, 0)) +
-  scale_y_discrete(expand = expansion(mult = c(0.01, .1))) +
-  theme_ridges() +
-   theme(legend.position = "none") +
-  labs(x= 'Depth (cm)', y="")
-)
-  
-```
-
-
-# Individual Histograms
-
-```{r}
-unique(sort(datacube1$resName))
-```
-
-
-```{r}
-( histplot1 = datacube1 %>%
-    filter(resName=="Arctic coastal tundra") %>%
-    ggplot(aes(x = predDepth)) +
-geom_histogram(stat = "count", fill = '#a6cee3') +
-  
-  hist_theme +
-    theme(strip.background = element_rect(color="white", fill="white", size=1.5, linetype="solid"),
-          strip.text.x = element_text(size = 5),
-          panel.spacing = unit(0,'lines')) +
-  labs(x='', y='') +
-  scale_x_continuous(expand=c(0,0)) +
-  scale_y_continuous(expand=c(0,0))
-  #xlim(0, 90) +
-  #ylim(0,20)
-)
-  #geom_rug(aes(predDepth, y = NULL))
+```{r eval=FALSE, include=FALSE}
+ggsave("../figures/EcozoneDataDistributionDisturbMap.png", plot = DataDistributuionMap_CombDist, dpi = 600, width = 8, height = 4.5, bg='white')
 ```
 

@@ -44,6 +44,14 @@ siteData = read_csv("../data/HollowaySites/HollowaySitesLong.csv")
 ```{r}
 siteData
 ```
+```{r}
+siteData %>% 
+  filter(!is.na(Difference)) %>% 
+  mutate(residualError = `Measured TempC` - `Modelled TempC`) %>% 
+    mutate(relativeError = (`Measured TempC` - `Modelled TempC`) / `Modelled TempC` * 100) %>%
+  summarise(residualErrorMean = mean(residualError),
+            relativeErrorMean = mean(relativeError))
+```
 
 ```{r}
 (siteData1 =  siteData 

@@ -4,6 +4,9 @@ author: "Anna Talucci"
 date: "2024-09-19"
 output: html_document
 ---
+```{r}
+rm(list=ls())
+```
 
 # Overview
 
@@ -14,14 +17,63 @@ Clean validation data for running predictive model
 ```{r}
 library(tidyverse)
 library(sf)
+library(lubridate)
+library(stringr)
 ```
 
 
 
 
-# Data
+# Breen 
 
-## vector of data files
+## data files
+
+```{r}
+breen = read_csv("../data/validationData/validationDataBreen.csv")
+```
+
+```{r}
+breen
+```
+```{r}
+breen %>% filter(lon >0)
+breen %>% filter(plot=="MP1-23-01")
+```
+
+## Organize
+
+```{r}
+( breen1 = breen %>% 
+  dplyr::select(plot, site, lat, lon, thaw_depth_202307_1, resistive_layer_202307__1,  active_layer_depth_202310_1, resistive_layer_202310_1) %>%
+    filter(resistive_layer_202310_1 != "none") %>%
+  dplyr::select(-resistive_layer_202307__1, -resistive_layer_202310_1) %>%
+  pivot_longer(
+    cols = c(thaw_depth_202307_1, active_layer_depth_202310_1),
+    names_to = "description",
+    values_to = "msrDepth",
+    values_drop_na = FALSE) %>%
+  mutate(msrType = ifelse(description=="thaw_depth_202307_1", "thaw", "active")) %>%
+  mutate(msrDate = ifelse(description=="thaw_depth_202307_1", "2023-07-01", "2023-10-01")) %>%
+  mutate(msrDate = as.Date(ymd(msrDate))) %>%
+  mutate(predDate = as.Date(ymd("2023-10-01"))) %>% 
+  mutate(predDoy = yday(predDate)) %>%
+    mutate(msrDate1 = msrDate) %>%
+    separate(msrDate1, into=c("year", "month", "day"), sep="\\-") %>%
+    mutate(lastNm = "Breen", 
+           dateGroup = "z1")  
+)
+```
+```{r}
+unique(breen1$fire_scar)
+unique(breen1$plot_number)
+```
+
+
+
+# Holloway
+
+## Data vector of data files Holloway
+
 ```{r}
 f <- list.files(path = "../data/validationData/holloway",
                 pattern = "*.csv", full.names = TRUE)
@@ -31,374 +83,568 @@ f <- list.files(path = "../data/validationData/holloway",
 f
 ```
 
-# Read Individual files
+## Read Individual files
+
 ```{r}
-b1 <- read.csv(f[1], header = TRUE) 
-b12 <- read.csv(f[2], header = TRUE) 
-b13 <- read.csv(f[3], header = TRUE) 
-b14 <- read.csv(f[4], header = TRUE) 
-b15 <- read.csv(f[5], header = TRUE) 
-b16 <- read.csv(f[6], header = TRUE) 
-b5 <- read.csv(f[7], header = TRUE) 
-b8 <- read.csv(f[8], header = TRUE) 
-b9 <- read.csv(f[9], header = TRUE) 
-ub2 <- read.csv(f[10], header = TRUE) 
-ub3 <- read.csv(f[11], header = TRUE) 
+f1 <- read_csv(f[1], id = "name") %>% mutate(name = str_remove_all(name, ".csv")) %>% separate(name, into=c("folder1", "folder2", "folder3", "folder4", "site"), sep="\\/")
+f2 <- read_csv(f[2], id = "name") %>% mutate(name = str_remove_all(name, ".csv")) %>% separate(name, into=c("folder1", "folder2", "folder3", "folder4", "site"), sep="\\/")
+f3 <- read_csv(f[3], id = "name") %>% mutate(name = str_remove_all(name, ".csv")) %>% separate(name, into=c("folder1", "folder2", "folder3", "folder4", "site"), sep="\\/")
+f4 <- read_csv(f[4], id = "name") %>% mutate(name = str_remove_all(name, ".csv")) %>% separate(name, into=c("folder1", "folder2", "folder3", "folder4", "site"), sep="\\/")
+f5 <- read_csv(f[5], id = "name") %>% mutate(name = str_remove_all(name, ".csv")) %>% separate(name, into=c("folder1", "folder2", "folder3", "folder4", "site"), sep="\\/") 
+f6 <- read_csv(f[6], id = "name") %>% mutate(name = str_remove_all(name, ".csv")) %>% separate(name, into=c("folder1", "folder2", "folder3", "folder4", "site"), sep="\\/")
+f7 <- read_csv(f[7], id = "name") %>% mutate(name = str_remove_all(name, ".csv")) %>% separate(name, into=c("folder1", "folder2", "folder3", "folder4", "site"), sep="\\/")
+f8 <- read_csv(f[8], id = "name") %>% mutate(name = str_remove_all(name, ".csv")) %>% separate(name, into=c("folder1", "folder2", "folder3", "folder4", "site"), sep="\\/")
+f9 <- read_csv(f[9], id = "name") %>% mutate(name = str_remove_all(name, ".csv")) %>% separate(name, into=c("folder1", "folder2", "folder3", "folder4", "site"), sep="\\/") 
+f10 <- read_csv(f[10], id = "name") %>% mutate(name = str_remove_all(name, ".csv")) %>% separate(name, into=c("folder1", "folder2", "folder3", "folder4", "site"), sep="\\/")
+f11 <- read_csv(f[11], id = "name") %>% mutate(name = str_remove_all(name, ".csv")) %>% separate(name, into=c("folder1", "folder2", "folder3", "folder4", "site"), sep="\\/")
 ```
 
-# b1 
+### b1 
 
 ```{r}
-names(b1)
-b1
+head(f1)
 ```
-
 ```{r}
-(
-df_b1 = b1 %>% 
-  rename(date_2015_06_17 = "FT...June.17..2015", date_2015_08_16 = "FT.Aug.16..2015", date_2016_05_17 = "FT...May.17..2016", date_2016_09_01 = "FT.Sept.1..2016", lat = "Latitude", lon = "Longitude") %>%
-  mutate(site = "b1") %>%
-  dplyr::select(-X, -X.1) %>%
- 
-  dplyr::select(-Description, -Description.1, -Description.2, -Description.3) %>%
+( f1_msr = f1 %>% 
+  dplyr::select(-description_2015_06_17, -description_2015_08_16, -description_2016_05_17, -description_2016_09_01) %>%
   pivot_longer(
-    cols = starts_with("date"),
-    names_to = "Date",
+    cols = starts_with("msr"),
+    names_to = "date",
     values_to = "msrDepth",
     values_drop_na = FALSE) %>%
-  mutate(msrTime = ifelse(Date %in% c( "date_2015_06_17", "date_2016_05_17"), "early","late")) %>%
-    mutate(dateGroup = ifelse(Date %in% c( "date_2015_06_17", "date_2015_08_16"), "a1","a2")) %>%
-  separate(Date, into=c("date", "year", "month", "day"), sep="\\_") %>%
-  mutate(year = as.numeric(year),
-         month = as.numeric(month),
-         day = as.numeric(day)) %>%
-   drop_na() 
+  mutate(msrType = ifelse(date %in% c( "msr_2015_06_17", "msr_2016_05_17"), "thaw","active")) %>%
+  mutate(dateGroup = ifelse(date %in% c( "msr_2015_06_17", "msr_2015_08_16"), "a1","a2")) %>%
+  mutate(predDate = ifelse(dateGroup %in% c( "a1"), "2015-08-16","2016-09-01")) %>%
+  separate(date, into=c("description", "year", "month", "day"), sep="\\_") %>%
+    separate(site, into=c("x", "site"), sep="\\_") %>%
+  mutate(date = make_date(year, month, day)) %>%
+  dplyr::select(-description, -x, -folder1, -folder2, -folder3) %>%
+    rename(lastNm = folder4)
 )
 ```
 
-# b12 
-
 ```{r}
-names(b12)
-b12
-```
-
-```{r}
-(
-  df_b12 = b12 %>% 
-  rename(Distance="Distance..m.", date_2015_06_06 = "FT...June.6..2015", date_2015_08_20 = "FT...Aug.20..2015", date_2016_05_20 = "FT.May.20..2016", date_2016_09_15 = "FT.Sept.15..2016", lat = "Latitude", lon = "Longitude") %>%
-  mutate(site = "b12") %>%
-  
-   
-  dplyr::select(-Description, -Description.1, -Description.2, -Description.3) %>%
+( f1_descriptor = f1 %>% 
+  dplyr::select(-msr_2015_06_17, -msr_2015_08_16, -msr_2016_05_17, -msr_2016_09_01) %>%
   pivot_longer(
-    cols = starts_with("date"),
-    names_to = "Date",
-    values_to = "msrDepth",
-    values_drop_na = TRUE) %>%
-  mutate(msrTime = ifelse(Date %in% c( "date_2015_06_06", "date_2016_05_20"), "early","late")) %>%
-    mutate(dateGroup = ifelse(Date %in% c( "date_2015_06_06", "date_2015_08_20"), "b1","b2")) %>%
-  separate(Date, into=c("date", "year", "month", "day"), sep="\\_") %>%
-  mutate(year = as.numeric(year),
-         month = as.numeric(month),
-         day = as.numeric(day)) %>%
-    drop_na() 
+    cols = starts_with("description"),
+    names_to = "date",
+    values_to = "description",
+    values_drop_na = FALSE) %>%
+  separate(date, into=c("date", "year", "month", "day"), sep="\\_") %>%
+    separate(site, into=c("x", "site"), sep="\\_") %>%
+  mutate(date = make_date(year, month, day)) %>%
+  dplyr::select( -year, -month, -day, -folder1, -folder2, -folder3, -folder4, -x)
+)
+```
+```{r}
+( join_b1 = f1_msr %>% right_join(., f1_descriptor, by = c("plot", "site", "lat", "lon", "date")) %>%
+    drop_na(msrDepth)
 )
 ```
 
-
-# b13 
+### b12 
 
 ```{r}
-names(b13)
-head(b13)
+head(f2)
 ```
 
 ```{r}
-(
-  df_b13 = b13 %>% 
-  rename(Distance="Distance..m.", date_2015_06_11 = "FT...June.11..2015", date_2015_08_19 = "FT...Aug.19..2015", date_2016_06_03 = "FT...June.3..2016", date_2016_09_15 = "FT.Sept.15..2016", lat = "Latitude", lon = "Longitude") %>%
-  mutate(site = "b13") %>%
-  
-   
-  dplyr::select(-Description, -Description.1, -Description.2, -Description.3) %>%
+( f2_msr = f2 %>% 
+  dplyr::select(-description_2015_06_06, -description_2015_08_20, -description_2016_05_20, -description_2016_09_15) %>%
   pivot_longer(
-    cols = starts_with("date"),
-    names_to = "Date",
+    cols = starts_with("msr"),
+    names_to = "date",
     values_to = "msrDepth",
     values_drop_na = FALSE) %>%
-  mutate(msrTime = ifelse(Date %in% c( "date_2015_06_11", "date_2016_06_0"), "early","late")) %>%
-    mutate(dateGroup = ifelse(Date %in% c( "date_2015_06_11", "date_2015_08_19"), "c1","c2")) %>%
-  separate(Date, into=c("date", "year", "month", "day"), sep="\\_") %>%
-  mutate(year = as.numeric(year),
-         month = as.numeric(month),
-         day = as.numeric(day)) %>%
-    drop_na()
-
-  )
-```
-
-# b14 
-
-```{r}
-names(b14)
-b14
+    mutate(msrType = ifelse(date %in% c( "msr_2015_06_06", "msr_2016_05_20"), "thaw","active")) %>%
+    mutate(dateGroup = ifelse(date %in% c( "msr_2015_06_06", "msr_2015_08_20"), "b1","b2")) %>%
+    mutate(predDate = ifelse(dateGroup %in% c( "b1"), "2015-08-20","2016-09-15")) %>%
+  separate(date, into=c("description", "year", "month", "day"), sep="\\_") %>%
+    separate(site, into=c("x", "site"), sep="\\_") %>%
+  mutate(date = make_date(year, month, day)) %>%
+  dplyr::select(-description, -x, -folder1, -folder2, -folder3) %>%
+    rename(lastNm = folder4)
+)
 ```
 
 ```{r}
-(
-  df_b14 = b14 %>% 
-  rename(date_2016_06_06 = "FT.June.6..2016", date_2016_09_12 = "FT.Sept.12..2016", lat = "Lat", lon = "Long") %>%
-  mutate(site = "b14") %>% 
-  dplyr::select(-X, -X.1) %>%
+( f2_descriptor = f2 %>% 
+  dplyr::select(-msr_2015_06_06, -msr_2015_08_20, -msr_2016_05_20, -msr_2016_09_15) %>%
   pivot_longer(
-    cols = starts_with("date"),
-    names_to = "Date",
+    cols = starts_with("description"),
+    names_to = "date",
+    values_to = "description",
+    values_drop_na = FALSE) %>%
+  separate(date, into=c("date", "year", "month", "day"), sep="\\_") %>%
+    separate(site, into=c("x", "site"), sep="\\_") %>%
+  mutate(date = make_date(year, month, day)) %>%
+  dplyr::select( -year, -month, -day, -folder1, -folder2, -folder3, -folder4, -x)
+)
+```
+```{r}
+( join_b12 = f2_msr %>% right_join(., f2_descriptor, by = c("plot", "site", "lat", "lon", "date")) %>%
+    drop_na(msrDepth)
+)
+```
+
+### b13 
+
+```{r}
+head(f3)
+```
+
+```{r}
+( f3_msr = f3 %>% 
+  dplyr::select(-description_2015_06_11, -description_2015_08_19, -description_2016_06_03, -description_2016_09_15) %>%
+  pivot_longer(
+    cols = starts_with("msr"),
+    names_to = "date",
     values_to = "msrDepth",
     values_drop_na = FALSE) %>%
-  mutate(msrTime = ifelse(Date == "date_2016_06_06", "early","late")) %>%
+    mutate(msrType = ifelse(date %in% c( "msr_2015_06_11", "msr_2016_06_03"), "thaw","active")) %>%
+    mutate(dateGroup = ifelse(date %in% c( "msr_2015_06_11", "msr_2015_08_19"), "c1","c2")) %>%
+    mutate(predDate = ifelse(dateGroup %in% c( "c1"), "2015-08-19","2016-09-15")) %>%
+  separate(date, into=c("description", "year", "month", "day"), sep="\\_") %>%
+    separate(site, into=c("x", "site"), sep="\\_") %>%
+  mutate(date = make_date(year, month, day)) %>%
+  dplyr::select(-description, -x, -folder1, -folder2, -folder3) %>%
+    rename(lastNm = folder4)
+)
+```
+
+```{r}
+( f3_descriptor = f3 %>% 
+  dplyr::select(-msr_2015_06_11, -msr_2015_08_19, -msr_2016_06_03, -msr_2016_09_15) %>%
+  pivot_longer(
+    cols = starts_with("description"),
+    names_to = "date",
+    values_to = "description",
+    values_drop_na = FALSE) %>%
+  separate(date, into=c("date", "year", "month", "day"), sep="\\_") %>%
+    separate(site, into=c("x", "site"), sep="\\_") %>%
+  mutate(date = make_date(year, month, day)) %>%
+  dplyr::select( -year, -month, -day, -folder1, -folder2, -folder3, -folder4, -x)
+)
+```
+
+```{r}
+( join_b13 = f3_msr %>% right_join(., f3_descriptor, by = c("plot", "site", "lat", "lon", "date")) %>%
+    drop_na(msrDepth)
+)
+```
+
+### b14 
+
+```{r}
+head(f4)
+```
+```{r}
+( f4_msr = f4 %>% 
+  dplyr::select(-description_2016_06_06, -description_2016_09_12) %>%
+  pivot_longer(
+    cols = starts_with("msr"),
+    names_to = "date",
+    values_to = "msrDepth",
+    values_drop_na = FALSE) %>%
+    mutate(msrType = ifelse(date %in% c( "msr_2016_06_06"), "thaw","active")) %>%
     mutate(dateGroup = "d1") %>%
-  separate(Date, into=c("date", "year", "month", "day"), sep="\\_") %>%
-  mutate(year = as.numeric(year),
-         month = as.numeric(month),
-         day = as.numeric(day)) %>%
-    drop_na()
-
-  )
-```
-
-# b15 
-
-```{r}
-names(b15)
-b15
+    mutate(predDate = "2016-09-12") %>%
+  separate(date, into=c("description", "year", "month", "day"), sep="\\_") %>%
+    separate(site, into=c("x", "site"), sep="\\_") %>%
+  mutate(date = make_date(year, month, day)) %>%
+  dplyr::select(-description, -x, -folder1, -folder2, -folder3) %>%
+    rename(lastNm = folder4)
+)
 ```
 
 ```{r}
-(
-  df_b15 = b15 %>% 
-  rename(Distance="Distance..m.", date_2015_18_06 = "FT...June.18..2015", date_2015_08_29 = "FT...Aug.29..2015", lat = "Lat", lon = "Long") %>%
-  mutate(site = "b15") %>% 
-  dplyr::select(-X, -X.1, -Description, -Description.1) %>%
+( f4_descriptor = f4 %>% 
+  dplyr::select(-msr_2016_06_06,  -msr_2016_09_12) %>%
   pivot_longer(
-    cols = starts_with("date"),
-    names_to = "Date",
+    cols = starts_with("description"),
+    names_to = "date",
+    values_to = "description",
+    values_drop_na = FALSE) %>%
+  separate(date, into=c("date", "year", "month", "day"), sep="\\_") %>%
+    separate(site, into=c("x", "site"), sep="\\_") %>%
+  mutate(date = make_date(year, month, day)) %>%
+  dplyr::select( -year, -month, -day, -folder1, -folder2, -folder3, -folder4, -x)
+)
+```
+```{r}
+( join_b14 = f4_msr %>% right_join(., f4_descriptor, by = c("plot", "site", "lat", "lon", "date")) %>%
+    drop_na(msrDepth)
+)
+```
+
+
+### b15 
+
+```{r}
+head(f5)
+```
+
+```{r}
+( f5_msr = f5 %>% 
+  dplyr::select(-description_2015_06_18, -description_2015_08_29) %>%
+  pivot_longer(
+    cols = starts_with("msr"),
+    names_to = "date",
     values_to = "msrDepth",
     values_drop_na = FALSE) %>%
-  mutate(msrTime = ifelse(Date == "date_2015_18_06", "early","late")) %>%
+     mutate(msrType = ifelse(date == "msr_2015_06_18", "thaw","active")) %>%
     mutate(dateGroup = "e1") %>%
-  separate(Date, into=c("date", "year", "month", "day"), sep="\\_") %>%
-  mutate(year = as.numeric(year),
-         month = as.numeric(month),
-         day = as.numeric(day)) %>%
-    drop_na()
-
-  )
-```
-
-
-# b16 
-
-Missing day of month can not use.
-
-```{r}
-names(b16)
-b16
+    mutate(predDate = "2015-08-29") %>%
+  separate(date, into=c("description", "year", "month", "day"), sep="\\_") %>%
+    separate(site, into=c("x", "site"), sep="\\_") %>%
+  mutate(date = make_date(year, month, day)) %>%
+  dplyr::select(-description, -x, -folder1, -folder2, -folder3) %>%
+    rename(lastNm = folder4)
+)
 ```
 
 ```{r}
-(
-  df_b16 = b16 %>% 
-  rename(Distance="Distance..m.", date_2015_18_06 = "FT...May.2015", date_2015_08_29 = "FT.Aug.30..2015", lat = "Lat", lon = "Long") %>%
-  mutate(site = "b16") %>% 
-  #dplyr::select(-X, -X.1) %>%
-  dplyr::select(-Description, -Description.1) %>%
+( f5_descriptor = f5 %>% 
+  dplyr::select(-msr_2015_06_18, -msr_2015_08_29) %>%
   pivot_longer(
-    cols = starts_with("date"),
-    names_to = "Date",
+    cols = starts_with("description"),
+    names_to = "date",
+    values_to = "description",
+    values_drop_na = FALSE) %>%
+  separate(date, into=c("date", "year", "month", "day"), sep="\\_") %>%
+    separate(site, into=c("x", "site"), sep="\\_") %>%
+  mutate(date = make_date(year, month, day)) %>%
+  dplyr::select( -year, -month, -day, -folder1, -folder2, -folder3, -folder4, -x)
+)
+```
+```{r}
+( join_b15 = f5_msr %>% right_join(., f5_descriptor, by = c("plot", "site", "lat", "lon", "date")) %>%
+    drop_na(msrDepth)
+)
+```
+
+### b16 
+
+```{r}
+head(f6)
+```
+
+```{r}
+( f6_msr = f6 %>% 
+  dplyr::select(-description_2015_06_18, -description_2015_08_30) %>%
+  pivot_longer(
+    cols = starts_with("msr"),
+    names_to = "date",
     values_to = "msrDepth",
     values_drop_na = FALSE) %>%
-  mutate(msrTime = ifelse(Date == "date_2015_18_06", "early","late")) %>%
+     mutate(msrType = ifelse(date == "msr_2015_06_18", "thaw","active")) %>%
     mutate(dateGroup = "e1") %>%
-  separate(Date, into=c("date", "year", "month", "day"), sep="\\_") %>%
-  mutate(year = as.numeric(year),
-         month = as.numeric(month),
-         day = as.numeric(day)) %>%
-    drop_na()
-
-  )
-```
-
-# b5 
-
-```{r}
-names(b5)
-b5
+    mutate(predDate = "2015-08-30") %>%
+  separate(date, into=c("description", "year", "month", "day"), sep="\\_") %>%
+    separate(site, into=c("x", "site"), sep="\\_") %>%
+  mutate(date = make_date(year, month, day)) %>%
+  dplyr::select(-description, -x, -folder1, -folder2, -folder3) %>%
+    rename(lastNm = folder4)
+)
 ```
 
 ```{r}
-(
-  df_b5 = b5 %>% 
-  rename( date_2015_06_12 = "FT...June.12..2015", date_2015_08_18 = "FT.Aug.18..2015", date_2016_05_13 ="FT.May.13..2016", date_2016_09_05 ="FT.Sept.5..2016",  lat = "Lat", lon = "Long") %>%
-  mutate(site = "b5") %>% 
-  #dplyr::select(-X, -X.1) %>%
-  dplyr::select(-Description, -Description.1, -Description.2, -Description.3) %>%
+( f6_descriptor = f6 %>% 
+  dplyr::select(-msr_2015_06_18, -msr_2015_08_30) %>%
   pivot_longer(
-    cols = starts_with("date"),
-    names_to = "Date",
+    cols = starts_with("description"),
+    names_to = "date",
+    values_to = "description",
+    values_drop_na = FALSE) %>%
+  separate(date, into=c("date", "year", "month", "day"), sep="\\_") %>%
+    separate(site, into=c("x", "site"), sep="\\_") %>%
+  mutate(date = make_date(year, month, day)) %>%
+  dplyr::select( -year, -month, -day, -folder1, -folder2, -folder3, -folder4, -x)
+)
+```
+```{r}
+( join_b16 = f6_msr %>% right_join(., f6_descriptor, by = c("plot", "site", "lat", "lon", "date")) %>%
+    drop_na(msrDepth)
+)
+```
+
+### b5 
+
+```{r}
+head(f7)
+```
+
+```{r}
+( f7_msr = f7 %>% 
+  dplyr::select(-description_2015_06_12, -description_2015_08_18, -description_2016_05_13, -description_2016_09_05) %>%
+  pivot_longer(
+    cols = starts_with("msr"),
+    names_to = "date",
     values_to = "msrDepth",
     values_drop_na = FALSE) %>%
-  mutate(msrTime = ifelse(Date %in% c("date_2015_06_12", "date_2016_05_13"), "early","late")) %>%
-    mutate(dateGroup = ifelse(Date %in% c( "date_2015_06_12", "date_2015_08_18"), "f1","f2")) %>%
-  separate(Date, into=c("date", "year", "month", "day"), sep="\\_") %>%
-  mutate(year = as.numeric(year),
-         month = as.numeric(month),
-         day = as.numeric(day)) %>%
-    drop_na()
-
-  )
-```
-
-# b8 
-
-```{r}
-names(b8)
-b8
+  mutate(msrType = ifelse(date %in% c("msr_2015_06_12", "msr_2016_05_13"), "thaw","active")) %>%
+    mutate(dateGroup = ifelse(date %in% c( "msr_2015_06_12", "msr_2015_08_18"), "f1","f2")) %>%
+    mutate(predDate = ifelse(dateGroup %in% c( "f1"), "2015-08-18","2016-09-05")) %>%
+  separate(date, into=c("description", "year", "month", "day"), sep="\\_") %>%
+    separate(site, into=c("x", "site"), sep="\\_") %>%
+  mutate(date = make_date(year, month, day)) %>%
+  dplyr::select(-description, -x, -folder1, -folder2, -folder3) %>%
+    rename(lastNm = folder4)
+)
 ```
 
 ```{r}
-(
-  df_b8 = b8 %>% 
-  rename(Distance="Distance..m.", date_2015_06_03 = "FT...June.3..2015", date_2015_08_17 = "FT.Aug.17..2015", date_2016_05_14 ="FT..May.14..2016", date_2016_09_02 ="FT.Sept.2..2016",  lat = "Lat", lon = "Long") %>%
-  mutate(site = "b8") %>% 
-  dplyr::select(-X, -X.1) %>%
-  dplyr::select(-Description, -Description.1, -Description.2, -Description.3) %>%
+( f7_descriptor = f7 %>% 
+  dplyr::select(-msr_2015_06_12, -msr_2015_08_18, -msr_2016_05_13, -msr_2016_09_05) %>%
   pivot_longer(
-    cols = starts_with("date"),
-    names_to = "Date",
+    cols = starts_with("description"),
+    names_to = "date",
+    values_to = "description",
+    values_drop_na = FALSE) %>%
+  separate(date, into=c("date", "year", "month", "day"), sep="\\_") %>%
+    separate(site, into=c("x", "site"), sep="\\_") %>%
+  mutate(date = make_date(year, month, day)) %>%
+  dplyr::select( -year, -month, -day, -folder1, -folder2, -folder3, -folder4, -x)
+)
+```
+
+```{r}
+( join_b5 = f7_msr %>% right_join(., f7_descriptor, by = c("plot", "site", "lat", "lon", "date")) %>%
+    drop_na(msrDepth)
+)
+```
+
+### b8 
+
+```{r}
+head(f8)
+```
+
+```{r}
+( f8_msr = f8 %>% 
+  dplyr::select(-description_2015_06_03, -description_2015_08_17, -description_2016_05_14, -description_2016_09_02) %>%
+  pivot_longer(
+    cols = starts_with("msr"),
+    names_to = "date",
     values_to = "msrDepth",
     values_drop_na = FALSE) %>%
-  mutate(msrTime = ifelse(Date %in% c("date_2015_06_03", "date_2016_05_14"), "early","late")) %>%
-    mutate(dateGroup = ifelse(Date %in% c( "date_2015_06_03", "date_2015_08_17"), "g1","g2")) %>%
-  separate(Date, into=c("date", "year", "month", "day"), sep="\\_") %>%
-  mutate(year = as.numeric(year),
-         month = as.numeric(month),
-         day = as.numeric(day)) %>%
-    drop_na()
-
-  )
-```
-
-# b9 
-
-```{r}
-names(b9)
-b9
+  mutate(msrType = ifelse(date %in% c("date_2015_06_03", "date_2016_05_14"), "thaw","active")) %>%
+    mutate(dateGroup = ifelse(date %in% c( "date_2015_06_03", "date_2015_08_17"), "g1","g2")) %>%
+    mutate(predDate = ifelse(dateGroup %in% c( "g1"), "2015-08-17","2016-09-02")) %>%
+  separate(date, into=c("description", "year", "month", "day"), sep="\\_") %>%
+    separate(site, into=c("x", "site"), sep="\\_") %>%
+  mutate(date = make_date(year, month, day)) %>%
+  dplyr::select(-description, -x, -folder1, -folder2, -folder3) %>%
+    rename(lastNm = folder4)
+)
 ```
 
 ```{r}
-(
-  df_b9 = b9 %>% 
-  rename(Distance="Distance..m.", date_2015_06_03 = "FT...June.3..2015", date_2015_08_12 = "FT...Aug.12..2015", date_2016_05_11 ="FT...May.11..2016", date_2016_09_14 ="FT.Sept.14..2016",  lat = "Lat", lon = "Long") %>%
-  mutate(site = "b9") %>% 
-  #dplyr::select(-X, -X.1) %>%
-  dplyr::select(-Description, -Description.1, -Description.2, -Description.3) %>%
+( f8_descriptor = f8 %>% 
+  dplyr::select(-msr_2015_06_03, -msr_2015_08_17, -msr_2016_05_14, -msr_2016_09_02) %>%
   pivot_longer(
-    cols = starts_with("date"),
-    names_to = "Date",
+    cols = starts_with("description"),
+    names_to = "date",
+    values_to = "description",
+    values_drop_na = FALSE) %>%
+  separate(date, into=c("date", "year", "month", "day"), sep="\\_") %>%
+    separate(site, into=c("x", "site"), sep="\\_") %>%
+  mutate(date = make_date(year, month, day)) %>%
+  dplyr::select( -year, -month, -day, -folder1, -folder2, -folder3, -folder4, -x)
+)
+```
+
+```{r}
+( join_b8 = f8_msr %>% right_join(., f8_descriptor, by = c("plot", "site", "lat", "lon", "date")) %>%
+    drop_na(msrDepth)
+)
+```
+
+
+### b9 
+
+```{r}
+head(f9)
+```
+
+
+```{r}
+( f9_msr = f9 %>% 
+  dplyr::select(-description_2015_06_03, -description_2015_08_12, -description_2016_05_11, -description_2016_09_14) %>%
+  pivot_longer(
+    cols = starts_with("msr"),
+    names_to = "date",
     values_to = "msrDepth",
     values_drop_na = FALSE) %>%
-  mutate(msrTime = ifelse(Date %in% c("date_2015_06_03", "date_2016_05_11"), "early","late")) %>%
-    mutate(dateGroup = ifelse(Date %in% c( "date_2015_06_03", "date_2015_08_12"), "h1","h2")) %>%
-  separate(Date, into=c("date", "year", "month", "day"), sep="\\_") %>%
-  mutate(year = as.numeric(year),
-         month = as.numeric(month),
-         day = as.numeric(day)) %>%
-    drop_na()
-
-  )
-```
-
-# ub2 
-
-```{r}
-names(ub2)
-ub2
+  mutate(msrType = ifelse(date %in% c("msr_2015_06_03", "msr_2016_05_11"), "thaw","active")) %>%
+    mutate(dateGroup = ifelse(date %in% c( "msr_2015_06_03", "msr_2015_08_12"), "h1","h2")) %>%
+    mutate(predDate = ifelse(dateGroup %in% c( "h1"), "2015-08-12","2016-09-14")) %>%
+  separate(date, into=c("description", "year", "month", "day"), sep="\\_") %>%
+    separate(site, into=c("x", "site"), sep="\\_") %>%
+  mutate(date = make_date(year, month, day)) %>%
+  dplyr::select(-description, -x, -folder1, -folder2, -folder3) %>%
+    rename(lastNm = folder4)
+)
 ```
 
 ```{r}
-(
-  df_ub2 = ub2 %>% 
-  rename( date_2015_05_16 = "FT.May.16..2016", date_2015_09_09 = "FT.Sept.9..2016",   lat = "Lat", lon = "Long") %>%
-  mutate(site = "ub2") %>% 
-  #dplyr::select(-X, -X.1) %>%
-  dplyr::select(-Description, -Description.1) %>%
+( f9_descriptor = f9 %>% 
+  dplyr::select(-msr_2015_06_03, -msr_2015_08_12, -msr_2016_05_11, -msr_2016_09_14) %>%
   pivot_longer(
-    cols = starts_with("date"),
-    names_to = "Date",
-    values_to = "msrDepth",
+    cols = starts_with("description"),
+    names_to = "date",
+    values_to = "description",
     values_drop_na = FALSE) %>%
-  mutate(msrTime = ifelse(Date %in% c("date_2015_05_16"), "early","late")) %>%
+  separate(date, into=c("date", "year", "month", "day"), sep="\\_") %>%
+    separate(site, into=c("x", "site"), sep="\\_") %>%
+  mutate(date = make_date(year, month, day)) %>%
+  dplyr::select( -year, -month, -day, -folder1, -folder2, -folder3, -folder4, -x)
+)
+```
+
+```{r}
+( join_b9 = f9_msr %>% right_join(., f9_descriptor, by = c("plot", "site", "lat", "lon", "date")) %>%
+    drop_na(msrDepth)
+)
+```
+
+### ub2 
+
+```{r}
+head(f10)
+```
+
+```{r}
+( f10_msr = f10 %>% 
+  dplyr::select(-description_2016_05_16, -description_2016_09_09) %>%
+  pivot_longer(
+    cols = starts_with("msr"),
+    names_to = "date",
+    values_to = "msrDepth",
+    values_drop_na = FALSE) %>% 
+    mutate(msrType = ifelse(date %in% c("msr_2016_05_16"), "thaw","active")) %>%
     mutate(dateGroup = "i2") %>%
-  separate(Date, into=c("date", "year", "month", "day"), sep="\\_") %>%
-  mutate(year = as.numeric(year),
-         month = as.numeric(month),
-         day = as.numeric(day)) %>%
-    drop_na()
-
-  )
-```
-
-# ub3 
-
-```{r}
-names(ub3)
-ub3
+    mutate(predDate = "2016-09-09") %>%
+  separate(date, into=c("description", "year", "month", "day"), sep="\\_") %>%
+    separate(site, into=c("x", "site"), sep="\\_") %>%
+  mutate(date = make_date(year, month, day)) %>%
+  dplyr::select(-description, -x, -folder1, -folder2, -folder3) %>%
+    rename(lastNm = folder4)
+)
 ```
 
 ```{r}
-(
-  df_ub3 = ub3 %>% 
-  rename( date_2015_05_29 = "FT...May.29..2015", date_2015_08_11 = "FT.Aug.11..2015", date_2016_05_10 = "FT...May.10..2016", date_2016_05_31 = "FT...May.31..2016", date_2016_09_16 = "FT.Sept.16..2016" ,   lat = "Lat", lon = "Long") %>%
-  mutate(site = "ub3") %>% 
-  #dplyr::select(-X, -X.1) %>%
-  dplyr::select(-Description, -Description.1, -Description.2, -Description.3) %>%
+( f10_descriptor = f10 %>% 
+  dplyr::select(-msr_2016_05_16, -msr_2016_09_09) %>%
   pivot_longer(
-    cols = starts_with("date"),
-    names_to = "Date",
+    cols = starts_with("description"),
+    names_to = "date",
+    values_to = "description",
+    values_drop_na = FALSE) %>%
+  separate(date, into=c("date", "year", "month", "day"), sep="\\_") %>%
+    separate(site, into=c("x", "site"), sep="\\_") %>%
+  mutate(date = make_date(year, month, day)) %>%
+  dplyr::select( -year, -month, -day, -folder1, -folder2, -folder3, -folder4, -x)
+)
+```
+```{r}
+( join_ub2 = f10_msr %>% right_join(., f10_descriptor, by = c("plot", "site", "lat", "lon", "date")) %>%
+    drop_na(msrDepth)
+)
+```
+
+### ub3 
+
+```{r}
+head(f11)
+```
+
+
+```{r}
+( f11_msr = f11 %>% 
+  dplyr::select(-description_2015_05_29, -description_2015_08_11, -description_2016_05_10, -description_2016_05_31, -description_2016_09_16) %>%
+  pivot_longer(
+    cols = starts_with("msr"),
+    names_to = "date",
     values_to = "msrDepth",
     values_drop_na = FALSE) %>%
-  mutate(msrTime = ifelse(Date %in% c("date_2015_05_29", "date_2016_05_10", "date_2016_05_31"), "early","late")) %>%
-     mutate(dateGroup = ifelse(Date %in% c( "date_2015_05_29", "date_2015_08_11"), "j1","j2")) %>%
-  separate(Date, into=c("date", "year", "month", "day"), sep="\\_") %>%
-  mutate(year = as.numeric(year),
-         month = as.numeric(month),
-         day = as.numeric(day)) %>%
-    drop_na()
-
-  )
-```
-
-
-# Combine data frames
-
-```{r}
-df = bind_rows(df_b1, df_b12, df_b13, df_b14, df_b15, df_b5, df_b8, df_b9, df_ub2, df_ub3)
+  mutate(msrType = ifelse(date %in% c("msr_2015_05_29", "msr_2016_05_10", "msr_2016_05_31"), "thaw","active")) %>%
+     mutate(dateGroup = ifelse(date %in% c( "msr_2015_05_29", "msr_2015_08_11"), "j1","j2")) %>%
+    mutate(predDate = ifelse(dateGroup %in% c( "j1"), "2015-08-11","2016-09-16")) %>%
+  separate(date, into=c("description", "year", "month", "day"), sep="\\_") %>%
+    separate(site, into=c("x", "site"), sep="\\_") %>%
+  mutate(date = make_date(year, month, day)) %>%
+  dplyr::select(-description, -x, -folder1, -folder2, -folder3) %>%
+    rename(lastNm = folder4)
+)
 ```
 
 ```{r}
-df
+( f11_descriptor = f11 %>% 
+  dplyr::select(-msr_2015_05_29, -msr_2015_08_11, -msr_2016_05_10, -msr_2016_05_31, -msr_2016_09_16) %>%
+  pivot_longer(
+    cols = starts_with("description"),
+    names_to = "date",
+    values_to = "description",
+    values_drop_na = FALSE) %>%
+  separate(date, into=c("date", "year", "month", "day"), sep="\\_") %>%
+    separate(site, into=c("x", "site"), sep="\\_") %>%
+  mutate(date = make_date(year, month, day)) %>%
+  dplyr::select( -year, -month, -day, -folder1, -folder2, -folder3, -folder4, -x)
+)
 ```
 
-# Save CSV
-
-```{r eval=FALSE, include=FALSE}
-write_csv(df, '../outputs/HollowayValidationData.csv')
+```{r}
+( join_ub3 = f11_msr %>% right_join(., f11_descriptor, by = c("plot", "site", "lat", "lon", "date")) %>%
+    drop_na(msrDepth)
+)
 ```
 
-# Create points shapefile
+### Combine data frames
 
-## Function to make points
+```{r}
+holloway = bind_rows(join_b1,  join_b5, join_b8, join_b9, join_b12, join_b13, join_b14, join_b15, join_b16, join_ub2, join_ub3) %>% 
+  mutate(predDate = as.Date(ymd(predDate)),
+         predDoy = yday(predDate),
+         plot = as.character(plot)) %>%
+  rename(msrDate = date)
+```
+
+
+```{r}
+sort(unique(holloway$description))
+sort(unique(holloway$year))
+```
+
+```{r}
+names(holloway)
+```
+
+### Save CSV
+
+```{r}
+write_csv(holloway, '../outputs/validationClean/HollowayValidationData.csv')
+```
+
+# Combine Breen and Holloway
+```{r}
+holloway
+breen1
+```
+
+```{r}
+sort(names(holloway))
+sort(names(breen1))
+```
+
+```{r}
+( allData = bind_rows(holloway, breen1) )
+```
+
+## Create points shapefile
+
+### Function to make points
 
 ```{r}
 df_to_sf <- function(x){
@@ -406,19 +652,74 @@ df_to_sf <- function(x){
 }
 ```
 
-## Drop Lat Lon NA and convert to shapefile 
+### Convert to shapefile 
 
 ```{r}
-( df_pts = df %>% 
+( allData_pts = allData %>% 
     df_to_sf() )
 ```
 
+# Add ecozones
 
-
-
-
-## write to shapefile
-
-```{r eval=FALSE, include=FALSE}
-st_write(df_pts, "../outputs/HollowayValidationShapefile.shp", driver="ESRI Shapefile")
+## Reslove data
+```{r}
+resolve = st_read("../data/spatialData/RESOLVE_Ecoregions_and_Biomes/Biomes_and_Ecoregions_2017.shp", "Biomes_and_Ecoregions_2017")
 ```
+
+```{r}
+permafrost = st_read("../data/spatialData/permafrost/permaice.shp", "permaice")
+```
+# Projection
+[Some projection info]https://nsidc.org/data/user-resources/help-center/guide-nsidcs-polar-stereographic-projection)
+```{r}
+polarProj = "+proj=stere +lat_0=90 +lat_ts=70 +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +type=crs"
+```
+
+## transform
+
+```{r}
+allData_pts_pp = st_transform(allData_pts, crs = polarProj)
+resolve_pp = st_transform(resolve, crs = polarProj)
+permafrost_pp = st_transform(permafrost, crs = polarProj) %>% dplyr::select(EXTENT)
+```
+
+## Join pts to ecozones
+
+```{r}
+( resTunBor = resolve_pp %>% 
+    filter(REALM %in% c("Palearctic", "Nearctic")) %>% 
+    dplyr::select(OBJECTID, ECO_NAME, BIOME_NUM, BIOME_NAME, REALM, ECO_ID, geometry) %>% 
+    filter(BIOME_NUM %in% c(11, 6)) %>%
+    rename(resId = OBJECTID, resName=ECO_NAME, resBiomNm = BIOME_NUM, resBiomeName = BIOME_NAME, resRealm = REALM,  resEcoId = ECO_ID) %>%
+    dplyr::select(resName, resBiomeName)
+)
+```
+
+```{r}
+resAllData = st_join(allData_pts_pp, resTunBor) 
+```
+
+```{r}
+resAllData
+```
+
+```{r}
+resPermaAllData = st_join(resAllData, permafrost_pp) 
+```
+
+
+```{r}
+resPermaAllData
+```
+
+```{r}
+sort(unique(resPermaAllData$year))
+sort(unique(resPermaAllData$lastNm))
+```
+
+### write to shapefile
+
+```{r}
+st_write(resPermaAllData, "../outputs/validationClean/HollowayBreenValidationShapefile.shp", driver="ESRI Shapefile")
+```
+

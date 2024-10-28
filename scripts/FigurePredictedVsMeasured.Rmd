@@ -36,8 +36,9 @@ comp_theme = theme_classic() + theme(legend.position = "none") +
 # Data
 
 ## Predicted measurements
+
 ```{r}
-datacubePred = read_csv("../data/dataCube/DatacubePermafrostFirePredicted.csv")
+datacubePred = read_csv("../data/dataCube/PermafrostFireDatacubeFinal.csv")
 ```
 
 ```{r}
@@ -160,7 +161,7 @@ ggplot(., aes(x = msrPrd, y=Doy)) +
 ( figDoy = forDates %>% 
     mutate(msrPrd = fct_recode(msrPrd,
                                   "Measured" = "msrDoy",
-                                  "Predicted" = "predDoy")) %>%
+                                  "Estimated" = "predDoy")) %>%
 ggplot(., aes(x = msrPrd, y=Doy)) +
   geom_violin() + 
   
@@ -186,7 +187,7 @@ ggsave("../figures/DatesMeasurePredictViolin.png", plot = comboDates, width = 3,
     filter(msrType=="thaw") %>% 
     mutate(msrPrd = fct_recode(msrPrd,
                                   "Measured" = "msrDepth",
-                                  "Predicted" = "predDepth")) %>%
+                                  "Estimated" = "predDepth")) %>%
 ggplot(., aes(x = msrPrd, y=depth)) +
   geom_violin() + 
   
@@ -219,11 +220,11 @@ comp_theme
 ( figDepth = forDepth %>% 
     mutate(msrPrd = fct_recode(msrPrd,
                                   "Measured" = "msrDepth",
-                                  "Predicted" = "predDepth")) %>%
+                                  "Estimated" = "predDepth")) %>%
 ggplot(., aes(x = msrPrd, y=depth)) +
   geom_violin() + 
   
-  geom_boxplot(width=0.1) +
+  geom_boxplot(width=0.1, outlier.shape = 21, outlier.size = 1) +
   stat_summary(fun=mean, geom="point", shape=23, size=2, color="red") +
 
   labs(x="", y="Depth (cm)") +
@@ -387,9 +388,9 @@ set.seed(29)
 # Four panel grid
 
 ```{r}
-( combo2plotgrid =  cowplot::plot_grid(figDoy, figDepth, paired2, permaFrostPlot,  ncol=2, labels = c('A', 'B', 'C', 'D'), label_size = 12)  ) 
+( combo2plotgrid =  cowplot::plot_grid(figDoy, figDepth,  ncol=2, labels = c('A', 'B'), label_size = 12)  ) 
 ```
 
 ```{r}
-ggsave("../figures/Plot4PanelPredictedMeasuredPermafrost.png", plot = combo2plotgrid, width = 6, height =4, units = c("in"), dpi=600, bg = "white" )
+ggsave("../figures/Plot2PanelPredictedMeasuredPermafrost.png", plot = combo2plotgrid, width = 6, height =2, units = c("in"), dpi=600, bg = "white" )
 ```
