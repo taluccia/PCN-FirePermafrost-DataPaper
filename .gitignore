@@ -50,8 +50,11 @@ rsconnect/
 
 # For Mac users computer specific files
 **/.DS_Store
+**._.gitignore
+**._.Rhistory
 ._*
 ._.*
+
 
 
 
