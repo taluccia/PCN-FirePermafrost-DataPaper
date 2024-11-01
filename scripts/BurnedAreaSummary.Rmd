@@ -57,10 +57,10 @@ nh  = wrld %>%
            pixArea_ha = pixArea_m2/10000,
            ba_ha = totalPixCt * pixArea_ha,
            ba_ha_thousand = ba_ha/1000, 
-           ba_binClass = ifelse(ba_ha == 0, "0",
-                    ifelse(ba_ha > 0 & ba_ha <= 10 , "0-10",
-                    ifelse(ba_ha > 10 & ba_ha <= 100 , "10-100", 
-                    ifelse(ba_ha > 100 & ba_ha <=1000, "100-1000", "3000")))))
+           ba_binClass = ifelse(ba_ha_thousand == 0, "0",
+                    ifelse(ba_ha_thousand > 0 & ba_ha_thousand <= 10 , "0-10",
+                    ifelse(ba_ha_thousand > 10 & ba_ha_thousand <= 100 , "10-100", 
+                    ifelse(ba_ha_thousand > 100 & ba_ha_thousand <=1000, "100-1000", "3000")))))
   )
 ```
 ```{r}
@@ -81,7 +81,7 @@ length(unique(hex$ID))
 ( hex_ba = hex %>% left_join(., pixelCt, by="ID") )
 ```
 
-```{r}
+```{r eval=FALSE, include=FALSE}
 st_write(hex_ba, "../outputs/spatialDatacreate/grids/hexBurnedArea.shp", driver="ESRI Shapefile")
 ```
 
@@ -110,14 +110,25 @@ polarProj = "+proj=stere +lat_0=90 +lat_ts=70 +lon_0=-45 +x_0=0 +y_0=0 +datum=WG
 # Reproject
 
 ```{r}
-russia_pp = st_transform(russia_eco, polarProj)
-na_pp = st_transform(na_eco, polarProj)
-polar_pp = st_transform(polar_eco, polarProj)
+
 nh_pp = st_transform(nh, polarProj)
 pts_pp = st_transform(pts, polarProj)
 ```
 
+```{r}
+join = st_join(hex_ba, nh_pp)
+```
 
+```{r}
+join
+```
+
+```{r}
+unique(join$FORMAL_EN)
+```
+```{r}
+selectCntry_hexBa = join %>% filter(FORMAL_EN %in% c("Canada", "United States of America", "Russian Federation", "Kingdom of Norway", "Kingdom of Sweden", "Republic of Finland", "Republic of Estonia", "People's Republic of China", "Mongolia")) %>% filter(ba_binClass != "0")
+```
 # Maps
 
 ## Zoom Level
@@ -145,11 +156,11 @@ disp_window <- st_sfc(st_point(st_coordinates(zoom_to_xy - c(x_span / 2, y_span 
 ```
 #FDE0C5FF, #FACBA6FF, #F8B58BFF, #F59E72FF, #F2855DFF, #EF6A4CFF, #EB4A40FF
 ```{r}
-ggplot() +
+(cumAreaBurned = ggplot() +
       geom_sf(data = nh_pp, fill = "#A9AB9D", colour="#A9AB9D") +
- geom_sf(data = hex_ba, color = "gray75", aes(fill=as.factor(ba_binClass))) +
-  scale_fill_manual(values = c('white', '#ffffb2','#fecc5c','#fd8d3c','#e31a1c')) +
-  geom_sf(data = pts_pp) +
+ geom_sf(data = selectCntry_hexBa, color = "gray75", aes(fill=as.factor(ba_binClass))) +
+  scale_fill_manual(values = c( '#FDE0C5FF','#F8B58BFF','#F2855DFF','#EB4A40FF'),name = "Cummulative area burned\nfrom 2002-2022\nin thousands of hectares",  label = c("<10","10-100","100-1000",">1000")) +
+  geom_sf(data = pts_pp, fill=NA, color="black", alpha=.5, size=1) +
   #geom_sf(data=artic_pp, fill=NA, colour = '#3d3021', lwd=.5, linetype="dashed") +
     #scale_fill_manual(values = ecoPalette, name = "Ecozones") +
     #scale_color_manual(values = ecoPalette, name = "Ecozones") +
@@ -161,11 +172,16 @@ ggplot() +
         panel.background = element_rect(fill = "#f0f8ff"),
         plot.margin=unit(c(0,0,0,0), "mm"),
         legend.key=element_blank(),
-        legend.position = "none",        
-        legend.text=element_text(size=0),
-        legend.title=element_text(size=0)) +
+        legend.key.size = unit(5, 'mm'),
+        legend.position = "right",        
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=9)) +
  
-  guides(fill=guide_legend( title.position = "top", ncol=3,byrow=TRUE))
+  guides(fill=guide_legend( title.position = "top", ncol=1,byrow=TRUE))
   
+)
+```
 
+```{r eval=FALSE, include=FALSE}
+ggsave("../figures/CummulativeAreaBurnedMap.png", plot = cumAreaBurned, dpi = 600, width = 6, height = 6, bg='white')
 ```
