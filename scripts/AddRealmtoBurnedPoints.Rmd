@@ -1,0 +1,66 @@
+---
+title: "Add realm to burned points"
+author: "Anna Talucci"
+date: "2024-10-30"
+output: html_document
+---
+
+# Overview 
+Create Hexagon Grid for cummulative area burned
+
+
+# Packages
+
+```{r}
+library(sf)
+library(dplyr)
+library(mapview)
+library(tmap)
+```
+
+## Burn area points
+
+```{r}
+points = st_read("../outputs/BurnedAreaPoints2002-2022.gpkg")
+```
+
+## Resolve Polygons
+
+```{r}
+resolve = st_read("../data/spatialData/RESOLVE_Ecoregions_and_Biomes/Biomes_and_Ecoregions_2017.shp", "Biomes_and_Ecoregions_2017")
+```
+
+## Select realms
+
+```{r}
+( nh = resolve %>% filter(REALM %in% c("Palearctic", "Nearctic")) )
+```
+
+## Join pts to realms
+
+```{r}
+pts_realm = st_join(st_make_valid(points), st_make_valid(nh))
+```
+
+```{r}
+head(pts_realm)
+```
+
+## Split points
+
+```{r}
+( russia_pts = pts_realm %>% filter(REALM=="Palearctic") )
+( na_pts = pts_realm %>% filter(REALM == "Nearctic") )
+```
+
+## Write
+
+```{r}
+st_write(russia_pts, "../outputs/geopackage/BurnedAreaRussiaPoints2002-2022.shp", driver="ESRI Shapefile")
+st_write(na_pts, "../outputs/geopackage/BurnedAreaNorthAmerPoints2002-2022.shp", driver="ESRI Shapefile")
+```
+
+```{r}
+russia = st_read("../outputs/geopackage/BurnedAreaRussiaPoints2002-2022.shp")
+na = st_read("../outputs/geopackage/BurnedAreaNorthAmerPoints2002-2022.shp")
+```

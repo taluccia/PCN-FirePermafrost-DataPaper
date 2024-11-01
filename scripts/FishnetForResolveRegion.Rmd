@@ -1,0 +1,167 @@
+---
+title: "Fishnet for Boreal Tundra Regions"
+author: "Anna Talucci"
+date: "2024-10-31"
+output: html_document
+---
+
+```{r clear environment}
+rm(list=ls())
+```
+
+# Overview 
+Create Hexagon Grid for cummulative area burned
+
+
+# Packages
+
+```{r}
+library(sf)
+library(tidyverse)
+```
+
+# Data
+
+## Resolve Polygons
+
+```{r}
+resolve = st_read("../data/spatialData/RESOLVE_Ecoregions_and_Biomes/Biomes_and_Ecoregions_2017.shp", "Biomes_and_Ecoregions_2017")
+```
+```{r}
+wrld = st_read("../data/spatialData/world/WB_countries_Admin0_10m.shp", "WB_countries_Admin0_10m")
+```
+```{r}
+target = c("Asia", "Europe", "North America")
+```
+
+Filter for all
+```{r}
+nh  = wrld %>% 
+  filter(CONTINENT %in% target) %>%
+  dplyr::select( OBJECTID:FORMAL_EN, NAME_EN, ISO_A2, CONTINENT:REGION_WB, Shape_Leng:geometry) 
+```
+
+```{r}
+russia_eco = resolve %>% filter(REALM=="Palearctic") 
+na_eco = resolve %>% filter(REALM == "Nearctic") 
+polar_eco = resolve %>% filter(REALM %in% c("Palearctic","Nearctic")) %>% filter(BIOME_NAME %in% c("Tundra","Boreal Forests/Taiga"))
+```
+
+# Projection
+
+[Some projection info]https://nsidc.org/data/user-resources/help-center/guide-nsidcs-polar-stereographic-projection)
+```{r}
+polarProj = "+proj=stere +lat_0=90 +lat_ts=70 +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +type=crs"
+```
+polarProj = "+proj=stere +lat_0=90 +lat_ts=70 +lon_0=-45 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +type=crs"
+
+# Reproject
+
+```{r}
+russia_pp = st_transform(russia_eco, polarProj)
+na_pp = st_transform(na_eco, polarProj)
+polar_pp = st_transform(polar_eco, polarProj)
+```
+
+
+
+# Create Grid and Select only cells in california
+
+```{r}
+grid <- st_make_grid(polar_pp, square = T, cellsize = c(100000, 100000))%>%
+  cbind(data.frame(ID = sprintf(paste("GID%0",nchar(length(.)),"d",sep=""), 1:length(.)))) %>%
+  st_sf() %>%
+  st_cast('POLYGON') %>%
+  st_join(., st_make_valid(polar_pp, largest=TRUE)) %>%
+  drop_na(ECO_NAME)
+
+```
+
+```{r}
+hexagons <- st_make_grid(polar_pp, square = FALSE, cellsize = c(100000, 100000))%>%
+  cbind(data.frame(ID = sprintf(paste("GID%0",nchar(length(.)),"d",sep=""), 1:length(.)))) %>%
+  st_sf() %>%
+  st_cast('POLYGON') %>%
+  st_join(., st_make_valid(polar_pp, largest=TRUE)) %>%
+  drop_na(ECO_NAME)
+
+```
+
+
+## Plot
+
+```{r}
+ggplot() +
+  geom_sf(data = polar_pp) +
+
+  theme_bw()
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = polar_pp) +
+  geom_sf(data = grid) +
+  theme_bw()
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = hexagons) +
+  theme_bw()
+```
+# Write Grid to shapefile
+
+```{r}
+st_write(grid, "../outputs/spatialDatacreate/grids/polarGrid.shp", driver="ESRI Shapefile")
+st_write(hexagons, "../outputs/spatialDatacreate/grids/polarHexagons.shp", driver="ESRI Shapefile")
+```
+
+
+# Count points in polygons
+```{r}
+points = st_read("../outputs/BurnedAreaPoints2002-2022.gpkg")
+```
+```{r}
+head(points)
+```
+```{r}
+points_pp = st_transform(points, polarProj)
+```
+
+
+```{r}
+(hexagons$pt_count <- lengths(st_intersects(hexagons, points_pp)))
+```
+pixel = 190,096
+```{r}
+hexagons_BA = hexagons %>% 
+  mutate(burnedArea_ha = pt_count*19.0096) %>% 
+  mutate(burnedAreaHaThousands = burnedArea_ha/1000) %>% 
+  mutate(burnedAreaClass = ifelse(burnedAreaHaThousands == 0, 0,
+                    ifelse(burnedAreaHaThousands >= 25, 25,
+                    ifelse(burnedAreaHaThousands >= 250, 250, 
+                    ifelse(burnedAreaHaThousands >= 2500, 2500, 5500))))) %>%
+  dplyr::select(ID:ECO_ID, pt_count, burnedArea_ha, burnedAreaHaThousands, burnedAreaClass, geometry)
+```
+
+```{r}
+hexagons_BA
+```
+```{r}
+min(hexagons_BA$burnedAreaHaThousands)
+mean(hexagons_BA$burnedAreaHaThousands)
+median(hexagons_BA$burnedAreaHaThousands)
+max(hexagons_BA$burnedAreaHaThousands)
+quantile(hexagons_BA$burnedAreaHaThousands)
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = hexagons_BA, color = "gray75", aes(fill=as.factor(burnedAreaClass))) +
+  scale_fill_manual(values = c('#00FFFF', '#ffffb2','#fecc5c','#fd8d3c','#e31a1c')) +
+  theme_bw()
+```
+
+```{r}
+(grid$pt_count <- lengths(st_intersects(grid, points)))
+```

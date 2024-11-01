@@ -1,0 +1,171 @@
+---
+title: "EE Hex pixel ct"
+author: "Anna Talucci"
+date: "2024-10-31"
+output: html_document
+---
+
+```{r clear environment}
+rm(list=ls())
+```
+
+# Overview 
+Create Hexagon Grid for cummulative area burned
+
+
+# Packages
+
+```{r}
+library(sf)
+library(tidyverse)
+```
+
+```{r}
+pixct = read_csv("../data/burnedArea/pixelCtModis2002-2022.csv")
+```
+```{r}
+hex = st_read("../outputs/spatialDatacreate/grids/polarHexagons.shp", "polarHexagons")
+```
+```{r}
+wrld = st_read("../data/spatialData/world/WB_countries_Admin0_10m.shp", "WB_countries_Admin0_10m")
+```
+
+```{r}
+pts = st_read("../outputs/pts.gpkg")
+```
+
+```{r}
+target = c("Asia", "Europe", "North America")
+```
+
+Filter for all
+```{r}
+nh  = wrld %>% 
+  filter(CONTINENT %in% target) %>%
+  dplyr::select( OBJECTID:FORMAL_EN, NAME_EN, ISO_A2, CONTINENT:REGION_WB, Shape_Leng:geometry) 
+```
+
+# Combine pixel count with hex shape
+11291.05   85756.14 2199822.08 
+```{r}
+( pixelCt = pixct %>% 
+  group_by(ID) %>%
+  mutate(totalPixCt = BurnDate +BurnDate_1 + BurnDate_2 + BurnDate_3 +BurnDate_4 +BurnDate_5 +BurnDate_6 +BurnDate_7 +BurnDate_8 +BurnDate_9 +BurnDate_10 +BurnDate_11 +BurnDate_12 +BurnDate_13 +BurnDate_14 +BurnDate_15 +BurnDate_16 +BurnDate_17 +BurnDate_18 +BurnDate_19 +BurnDate_20) %>%
+    dplyr::select(ID, totalPixCt) %>%
+    ungroup() %>%
+    mutate(pixArea_m2 = 463.31271652791656*463.31271652791656,
+           pixArea_ha = pixArea_m2/10000,
+           ba_ha = totalPixCt * pixArea_ha,
+           ba_ha_thousand = ba_ha/1000, 
+           ba_binClass = ifelse(ba_ha == 0, "0",
+                    ifelse(ba_ha > 0 & ba_ha <= 10 , "0-10",
+                    ifelse(ba_ha > 10 & ba_ha <= 100 , "10-100", 
+                    ifelse(ba_ha > 100 & ba_ha <=1000, "100-1000", "3000")))))
+  )
+```
+```{r}
+quantile(pixelCt$totalPixCt)
+quantile(pixelCt$ba_ha)
+quantile(pixelCt$ba_ha_thousand)
+```
+5241
+```{r}
+hex
+```
+
+```{r}
+length(unique(hex$ID))
+```
+
+```{r}
+( hex_ba = hex %>% left_join(., pixelCt, by="ID") )
+```
+
+```{r}
+st_write(hex_ba, "../outputs/spatialDatacreate/grids/hexBurnedArea.shp", driver="ESRI Shapefile")
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = hex_ba, aes(fill=totalPixCt)) +
+  #scale_fill_manual(values = c('white', '#ffffb2','#fecc5c','#fd8d3c','#e31a1c')) +
+  theme_bw()
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = hex_ba, color = "gray75", aes(fill=as.factor(ba_binClass))) +
+  scale_fill_manual(values = c('white', '#ffffb2','#fecc5c','#fd8d3c','#e31a1c')) +
+  theme_bw()
+```
+
+# Projection
+
+[Some projection info]https://nsidc.org/data/user-resources/help-center/guide-nsidcs-polar-stereographic-projection)
+```{r}
+polarProj = "+proj=stere +lat_0=90 +lat_ts=70 +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +type=crs"
+```
+polarProj = "+proj=stere +lat_0=90 +lat_ts=70 +lon_0=-45 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +type=crs"
+
+# Reproject
+
+```{r}
+russia_pp = st_transform(russia_eco, polarProj)
+na_pp = st_transform(na_eco, polarProj)
+polar_pp = st_transform(polar_eco, polarProj)
+nh_pp = st_transform(nh, polarProj)
+pts_pp = st_transform(pts, polarProj)
+```
+
+
+# Maps
+
+## Zoom Level
+
+```{r}
+#### zoom to kamchatka, different projection ####
+
+zoom_to <- c(180, 83)  # ~ center of Kamchatka
+zoom_level <- 2.0
+
+# Lambert azimuthal equal-area projection around center of interest
+target_crs <- polarProj#sprintf('+proj=laea +lon_0=%f +lat_0=%f', zoom_to[1], zoom_to[2])
+
+
+C <- 40075016.686   # ~ circumference of Earth in meters
+x_span <- C / 2^(zoom_level+.1)
+y_span <- C / 2^(zoom_level+.3)   # also sets aspect ratio
+
+zoom_to_xy <- st_transform(st_sfc(st_point(zoom_to), crs = 4326), crs = target_crs)
+zoom_to_xy
+
+disp_window <- st_sfc(st_point(st_coordinates(zoom_to_xy - c(x_span / 2, y_span / 2))),
+                      st_point(st_coordinates(zoom_to_xy + c(x_span / 2, y_span / 2))),
+                      crs = target_crs)
+```
+#FDE0C5FF, #FACBA6FF, #F8B58BFF, #F59E72FF, #F2855DFF, #EF6A4CFF, #EB4A40FF
+```{r}
+ggplot() +
+      geom_sf(data = nh_pp, fill = "#A9AB9D", colour="#A9AB9D") +
+ geom_sf(data = hex_ba, color = "gray75", aes(fill=as.factor(ba_binClass))) +
+  scale_fill_manual(values = c('white', '#ffffb2','#fecc5c','#fd8d3c','#e31a1c')) +
+  geom_sf(data = pts_pp) +
+  #geom_sf(data=artic_pp, fill=NA, colour = '#3d3021', lwd=.5, linetype="dashed") +
+    #scale_fill_manual(values = ecoPalette, name = "Ecozones") +
+    #scale_color_manual(values = ecoPalette, name = "Ecozones") +
+  
+    labs(x="", y="") +
+
+  coord_sf(xlim = st_coordinates(disp_window)[,'X'], ylim = st_coordinates(disp_window)[,'Y']) +
+ theme(panel.grid.major = element_line(color = gray(0.5), linetype = "solid", size = 0.3), 
+        panel.background = element_rect(fill = "#f0f8ff"),
+        plot.margin=unit(c(0,0,0,0), "mm"),
+        legend.key=element_blank(),
+        legend.position = "none",        
+        legend.text=element_text(size=0),
+        legend.title=element_text(size=0)) +
+ 
+  guides(fill=guide_legend( title.position = "top", ncol=3,byrow=TRUE))
+  
+
+```
