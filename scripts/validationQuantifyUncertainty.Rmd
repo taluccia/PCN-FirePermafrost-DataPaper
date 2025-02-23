@@ -58,6 +58,9 @@ unique(data$plot)
 ```{r}
 unique(data$site)
 ```
+```{r}
+data %>% filter(lastNm=="Breen")
+```
 
 ```{r}
 data$site[data$site == "Delome River"] <- "DR"

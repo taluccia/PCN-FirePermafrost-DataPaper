@@ -23,12 +23,16 @@ library(ggnewscale)
 
 ## Predicted measurements
 ```{r}
-firealt =read_csv("../data/dataset/FireALTdataset.csv")
+firealt =read_csv("../data/PCNFINAL/FireAltEstimatedRaw.csv")
 ```
 
 ```{r}
 firealt
 ```
+```{r}
+sort(unique(firealt$slope))
+```
+
 # Names
 
 ```{r}
@@ -37,6 +41,13 @@ names(firealt)
 ```{r}
 unique(firealt)
 ```
+
+# Years of measurement
+
+```{r}
+sort(unique(firealt$year))
+```
+
 # Min/Max lat/lon
 
 ```{r}
@@ -105,7 +116,9 @@ sort(unique(firealt$paired))
 firealt %>% group_by(siteId) %>% 
   summarise(n = n()) 
 ```
+
 # Unique Pairs
+
 ```{r}
 ( aggregate = firealt %>% 
   group_by(resBiome, resName, submitNm, distur, permaExtent, paired, fireYr, fireId, tsf, tsfClass) %>%
@@ -169,4 +182,22 @@ firealt %>% filter(msrDepth>200)
 
 ```{r}
 firealt %>% group_by(submitNm) %>% summarise(count = n())
+```
+
+# Jean and Amy's data
+
+```{r}
+( jean = firealt %>% filter(submitNm=="Holloway") )
+```
+
+```{r}
+unique(jean$siteId)
+```
+
+```{r}
+( amy = firealt %>% filter(submitNm=="Breen") )
+```
+
+```{r}
+unique(amy$plotId)
 ```

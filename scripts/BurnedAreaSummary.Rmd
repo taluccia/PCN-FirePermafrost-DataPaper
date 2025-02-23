@@ -19,6 +19,9 @@ Create Hexagon Grid for cummulative area burned
 library(sf)
 library(tidyverse)
 ```
+```{r}
+pixctmean = read_csv("../data/burnedArea/pixelCtModisMean2002-2023.csv")
+```
 
 ```{r}
 pixct = read_csv("../data/burnedArea/pixelCtModis2002-2022.csv")
@@ -63,6 +66,8 @@ nh  = wrld %>%
                     ifelse(ba_ha_thousand > 100 & ba_ha_thousand <=1000, "100-1000", "3000")))))
   )
 ```
+
+
 ```{r}
 quantile(pixelCt$totalPixCt)
 quantile(pixelCt$ba_ha)
@@ -99,6 +104,60 @@ ggplot() +
   theme_bw()
 ```
 
+## Annual Mean 
+
+
+```{r}
+( annualMean = pixct %>% 
+  group_by(ID) %>%
+  mutate(totalPixCt = BurnDate +BurnDate_1 + BurnDate_2 + BurnDate_3 +BurnDate_4 +BurnDate_5 +BurnDate_6 +BurnDate_7 +BurnDate_8 +BurnDate_9 +BurnDate_10 +BurnDate_11 +BurnDate_12 +BurnDate_13 +BurnDate_14 +BurnDate_15 +BurnDate_16 +BurnDate_17 +BurnDate_18 +BurnDate_19 +BurnDate_20,
+         annualMeanCt = totalPixCt/21 ) %>%
+    dplyr::select(ID, totalPixCt, annualMeanCt) %>%
+    ungroup() %>%
+    mutate(pixArea_m2 = 463.31271652791656*463.31271652791656,
+           pixArea_ha = pixArea_m2/10000,
+           ba_ha = annualMeanCt * pixArea_ha,
+           ba_ha_thousand = ba_ha/1000) 
+           
+  )
+```
+
+
+```{r}
+quantile(annualMean$annualMeanCt)
+quantile(annualMean$ba_ha)
+quantile(annualMean$ba_ha_thousand)
+```
+5241
+```{r}
+hex
+```
+0.5376689   4.0836257 104.7534326
+```{r}
+( hex_MeanAnnualBa = hex %>% left_join(., annualMean, by="ID")  %>%
+    mutate(ba_binClass = ifelse(ba_ha_thousand == 0, "0",
+                    ifelse(ba_ha_thousand > 0 & ba_ha_thousand <= 5 , "0-5", 
+                    ifelse(ba_ha_thousand > 5 & ba_ha_thousand <=10, "5-10",
+                    ifelse(ba_ha_thousand > 10 & ba_ha_thousand <=100, "10-100",
+                           ifelse(ba_ha_thousand > 100 & ba_ha_thousand <=1000, "100-1000","3000")))))) %>%
+    filter(ba_binClass != "0") %>%
+    mutate(ba_binClass = factor(ba_binClass, levels = c("0-5", '5-10', '10-100',  '100-1000')))
+  )
+```
+```{r}
+ggplot() +
+  geom_sf(data = hex_MeanAnnualBa, aes(fill=ba_ha)) +
+  #scale_fill_manual(values = c('white', '#ffffb2','#fecc5c','#fd8d3c','#e31a1c')) +
+  theme_bw()
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = hex_MeanAnnualBa, color = "gray75", aes(fill=as.factor(ba_binClass))) +
+  scale_fill_manual(values = c('#ffffb2','#fecc5c','#fd8d3c','#e31a1c')) +
+  theme_bw()
+```
+
 # Projection
 
 [Some projection info]https://nsidc.org/data/user-resources/help-center/guide-nsidcs-polar-stereographic-projection)
@@ -124,11 +183,20 @@ join
 ```
 
 ```{r}
+joinMean = st_join(hex_MeanAnnualBa, nh_pp)
+```
+
+```{r}
 unique(join$FORMAL_EN)
 ```
 ```{r}
 selectCntry_hexBa = join %>% filter(FORMAL_EN %in% c("Canada", "United States of America", "Russian Federation", "Kingdom of Norway", "Kingdom of Sweden", "Republic of Finland", "Republic of Estonia", "People's Republic of China", "Mongolia")) %>% filter(ba_binClass != "0")
 ```
+
+```{r}
+selectCntry_hexAnnual = joinMean %>% filter(FORMAL_EN %in% c("Canada", "United States of America", "Russian Federation", "Kingdom of Norway", "Kingdom of Sweden", "Republic of Finland", "Republic of Estonia", "People's Republic of China", "Mongolia")) 
+```
+
 # Maps
 
 ## Zoom Level
@@ -159,7 +227,7 @@ disp_window <- st_sfc(st_point(st_coordinates(zoom_to_xy - c(x_span / 2, y_span 
 (cumAreaBurned = ggplot() +
       geom_sf(data = nh_pp, fill = "#A9AB9D", colour="#A9AB9D") +
  geom_sf(data = selectCntry_hexBa, color = "gray75", aes(fill=as.factor(ba_binClass))) +
-  scale_fill_manual(values = c( '#FDE0C5FF','#F8B58BFF','#F2855DFF','#EB4A40FF'),name = "Cummulative area burned\nfrom 2002-2022\nin thousands of hectares",  label = c("<10","10-100","100-1000",">1000")) +
+  scale_fill_manual(values = c( '#FDE0C5FF','#F8B58BFF','#F2855DFF','#EB4A40FF'),name = "Cumulative area burned\nfrom 2002-2022\nin thousands of hectares",  label = c("<10","10-100","100-1000",">1000")) +
   geom_sf(data = pts_pp, fill=NA, color="black", alpha=.5, size=1) +
   #geom_sf(data=artic_pp, fill=NA, colour = '#3d3021', lwd=.5, linetype="dashed") +
     #scale_fill_manual(values = ecoPalette, name = "Ecozones") +
@@ -182,6 +250,39 @@ disp_window <- st_sfc(st_point(st_coordinates(zoom_to_xy - c(x_span / 2, y_span 
 )
 ```
 
+
+```{r}
+(MeanAnnualAreaBurned = ggplot() +
+      geom_sf(data = nh_pp, fill = "#A9AB9D", colour="#A9AB9D") +
+ geom_sf(data = selectCntry_hexAnnual, color = "gray75", aes(fill=as.factor(ba_binClass))) +
+  scale_fill_manual(values = c( '#FDE0C5FF','#F8B58BFF','#F2855DFF','#EB4A40FF'),name = "Mean annual area burned\nfrom 2002-2022\nin thousands of hectares") +
+  geom_sf(data = pts_pp, fill=NA, color="black", alpha=.5, size=1) +
+  #geom_sf(data=artic_pp, fill=NA, colour = '#3d3021', lwd=.5, linetype="dashed") +
+    #scale_fill_manual(values = ecoPalette, name = "Ecozones") +
+    #scale_color_manual(values = ecoPalette, name = "Ecozones") +
+  
+    labs(x="", y="") +
+
+  coord_sf(xlim = st_coordinates(disp_window)[,'X'], ylim = st_coordinates(disp_window)[,'Y']) +
+ theme(panel.grid.major = element_line(color = gray(0.5), linetype = "solid", size = 0.3), 
+        panel.background = element_rect(fill = "#f0f8ff"),
+        plot.margin=unit(c(0,0,0,0), "mm"),
+        legend.key=element_blank(),
+        legend.key.size = unit(5, 'mm'),
+        legend.position = "right",        
+        legend.text=element_text(size=8),
+        legend.title=element_text(size=9)) +
+ 
+  guides(fill=guide_legend( title.position = "top", ncol=1,byrow=TRUE))
+  
+)
+```
+
+
 ```{r eval=FALSE, include=FALSE}
-ggsave("../figures/CummulativeAreaBurnedMap.png", plot = cumAreaBurned, dpi = 600, width = 6, height = 6, bg='white')
+ggsave("../figures/CumulativeAreaBurnedMap.png", plot = cumAreaBurned, dpi = 600, width = 6, height = 6, bg='white')
+```
+
+```{r eval=FALSE, include=FALSE}
+ggsave("../figures/AnnualMeanAreaBurnedMap.png", plot = MeanAnnualAreaBurned, dpi = 600, width = 6, height = 6, bg='white')
 ```

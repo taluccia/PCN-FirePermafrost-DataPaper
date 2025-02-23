@@ -36,7 +36,7 @@ library(ggnewscale)
 ## Final datacube
 
 ```{r}
-dataFinal = read_csv("../data/dataCube/PermafrostFireDatacubeFinal.csv")
+dataFinal = read_csv("../data/2025-02-22_PCNFinal/FireAltEstimatedRawData.csv")
 ```
 
 ## Resolve
@@ -81,17 +81,7 @@ pts = dataFinal %>% df_to_sf()
 
 # Centroid by each region
 
-### 1. "Arctic coastal tundra"
 
-```{r eval=FALSE, include=FALSE}
-res01 =  resTunBor %>% 
-    filter(resName=='Arctic coastal tundra') %>%
-    st_geometry() %>% # pull just geometry
-  st_combine() %>%  # from many points to a single multipoint
-  st_centroid() %>% # compute centroid of the multipoint
-  st_as_sf() %>% # make it a sf object again 
-  mutate(resName='Arctic coastal tundra')
-```
 
 ### 2. "Arctic foothills tundra"
 
@@ -250,7 +240,7 @@ res13 =  resolve%>%
 
 ```{r}
 ( 
-  resCentroid = bind_rows(res02, res03, res04, res05, res06, res07, res08, res09, res10, res11, res12, res13) %>% 
+  resCentroid = bind_rows(res02, res03, res04, res05, res06, res07, res09, res10, res11, res12, res13) %>% 
     rename(geometry = x)
 )
 ```
@@ -287,7 +277,7 @@ polarProj = "+proj=stere +lat_0=90 +lat_ts=70 +lon_0=-45 +x_0=0 +y_0=0 +datum=WG
 ## Save 
 
 ```{r eval=FALSE, include=FALSE}
-st_write(resCentroidreproj, "../outputs/spatialDataCreate/EcozoneResCentroids.gpkg")
+st_write(resCentroidreproj, "../outputs/spatialDataCreate/EcozoneResCentroids2024-02-23.gpkg")
 ```
 
 
