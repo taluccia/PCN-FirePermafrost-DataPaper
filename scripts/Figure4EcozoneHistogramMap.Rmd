@@ -1,0 +1,477 @@
+---
+title: "Figure Proportion of area represented"
+author: "Anna Talucci"
+date: "2024-03-08"
+output: html_document
+---
+
+# clear environment
+```{r}
+rm(list=ls())
+```
+
+
+# Overview
+Creat over view map with permafrost extent and summary of site data.
+Notes:From PCN-Fire-Sysnthesis "Manuscript Map"
+[Better colors for Mapping](https://www.esri.com/arcgis-blog/products/js-api-arcgis/mapping/better-colors-for-better-mapping/)
+# Packages
+```{r}
+library(tidyverse)
+library(sf)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(RColorBrewer)
+library(cowplot)
+library(ggpubr)
+library(ggnewscale)
+library(scales)
+library(ggrepel)
+library(patchwork)
+library(ggridges)
+
+```
+
+# Projection
+[Some projection info]https://nsidc.org/data/user-resources/help-center/guide-nsidcs-polar-stereographic-projection)
+```{r}
+polarProj = "+proj=stere +lat_0=90 +lat_ts=70 +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +type=crs"
+```
+
+# Data
+
+## Predicted measurements
+
+```{r}
+datacubePred = read_csv("../data/PCNFINAL/FireAltEstimatedRaw.csv")
+```
+```{r}
+( datacubePred = datacubePred %>% mutate(Continent = ifelse(cntryId %in% c("US", "CA"), "North America", "Asia")))
+```
+## Resolve Polygons
+
+```{r}
+resolve = st_read("../data/spatialData/RESOLVE_Ecoregions_and_Biomes/Biomes_and_Ecoregions_2017.shp", "Biomes_and_Ecoregions_2017")
+```
+
+```{r}
+resTarget = c( "Arctic foothills tundra", "Beringia lowland tundra",  "Beringia upland tundra", "Chukchi Peninsula tundra", "East Siberian taiga", "Interior Alaska-Yukon lowland taiga", "Muskwa-Slave Lake taiga", "Northeast Siberian taiga", "Northern Canadian Shield taiga",      "Northwest Territories taiga", "Yamal-Gydan tundra")
+```
+
+```{r}
+resolve1 = resolve %>% filter(ECO_NAME %in% resTarget)
+```
+
+## World map
+https://datacatalog.worldbank.org/dataset/world-bank-official-boundaries
+
+```{r}
+wrld = st_read("../data/spatialData/world/WB_countries_Admin0_10m.shp", "WB_countries_Admin0_10m")
+```
+
+## permafrost
+
+```{r}
+permafrost = st_read("../data/spatialData/permafrost/permaice.shp", "permaice")
+```
+
+```{r}
+head(permafrost)
+```
+
+# Arctic Circle 
+Arctic Circle shapefile came from [Natural Earth](https://www.naturalearthdata.com/downloads/110m-physical-vectors/110m-geographic-lines/)
+
+```{r}
+circle = st_read("../data/spatialData/ne_110m_geographic_lines/ne_110m_geographic_lines.shp", "ne_110m_geographic_lines") 
+```
+```{r}
+arctic = circle %>% filter(name=="Arctic Circle")
+```
+
+
+
+# Filter shapefiles
+
+## Countries
+
+```{r}
+target = c("Asia", "Europe", "North America")
+```
+
+Filter for all
+```{r}
+nh  = wrld %>% 
+  filter(CONTINENT %in% target) %>%
+  dplyr::select( OBJECTID:FORMAL_EN, NAME_EN, ISO_A2, CONTINENT:REGION_WB, Shape_Leng:geometry) 
+```
+
+
+```{r}
+nh
+```
+
+## Permafrost
+
+```{r}
+permafrost1 = permafrost %>% 
+  filter(EXTENT %in% c("C", "D", "S")) 
+```
+
+# Reproject
+
+```{r}
+nh_pp = st_transform(nh, crs = polarProj)
+
+artic_pp = st_transform(arctic, crs = polarProj)
+permafrost1_pp = st_transform(permafrost1, crs = polarProj)
+resolve1_pp = st_transform(resolve1, crs = polarProj)
+resolveAllpp = st_transform(resolve, crs = polarProj)
+```
+
+```{r}
+nh_pp
+```
+
+```{r}
+nh_cropped <- st_crop(nh_pp, xmin = -180, xmax = 180,
+                                    ymin = 45, ymax = 90)
+```
+
+# Plot themes & pallettes
+
+## themes
+
+```{r}
+comp_theme = theme_minimal() + theme(legend.position = "none") +  
+  theme(panel.grid.major = element_blank()) +
+    theme(axis.title.y = element_text(size = 10, hjust = 0.5, vjust = 1.1),
+        axis.text.x = element_text(size = 8, color = "black"),
+        axis.text.y = element_text(size = 8, color = "black"))
+```
+
+```{r}
+theme_legdR = theme_minimal() + theme(legend.position = "right") +  
+  theme(panel.grid.major = element_blank()) +
+    theme(axis.title.y = element_text(size = 11, hjust = 0.5, vjust = 1.1),
+        axis.text.x = element_text(size = 10, color = "black"),
+        axis.text.y = element_text(size = 10, color = "black"))
+```
+
+```{r}
+hist_theme = theme_minimal() + 
+  theme(legend.position = "none",
+        panel.grid.major = element_blank(),
+        axis.text.x = element_text(size = 4, color = "black", face = "plain", margin = margin(r = 0, l=0, t=0, b=0)),
+        axis.text.y = element_text(size = 4, color = "black", face = "plain", margin = margin(r = 0, l=0, t=0, b=0)), 
+        axis.title.x = element_text(size = 5, color = "black", face = "plain", hjust = -.01),
+        axis.title.y = element_text(size = 5, color = "black", face = "plain"),
+        plot.margin=unit(c(0,5,2,3), "mm")) # t,r,b,l
+```
+
+## Palettes
+[More Palette options for R](https://stackoverflow.com/questions/9563711/r-color-palettes-for-many-data-classes)
+```{r}
+ecoPalette = c('#ff7f00','#1f78b4',"#00bfa0",'#fb9a99','#e31a1c','#33a02c',"#dc0ab4",'#b2df8a','#bebada', '#CC6677', '#b15928')
+```
+
+
+
+```{r}
+sort(unique(datacubePred$resName))
+```
+| Ecozone                               |  Hexcode   |
+|:-------------------------------------:|:----------:|
+| "Arctic foothills tundra"             | '#ff7f00'  |
+| "Beringia lowland tundra"             | '#1f78b4'  |
+| "Beringia upland tundra"              | "#00bfa0"  |
+| "Chukchi Peninsula tundra"            | '#fb9a99'  |
+| "East Siberian taiga"                 | '#e31a1c'  |
+| "Interior Alaska-Yukon lowland taiga" | '#33a02c'  | 
+| "Interior Yukon-Alaska alpine tundra" | '#a6cee3'  |
+| "Muskwa-Slave Lake taiga"             | "#dc0ab4"  |
+| "Northeast Siberian taiga"            | '#b2df8a'  |
+| "Northern Canadian Shield taiga"      | '#bebada'  |
+| "Northwest Territories taiga"         | '#CC6677'  |
+| "Yamal-Gydan tundra"                  | '#b15928'  |
+
+
+```{r}
+permafrost_palette = c('#71A6D1', '#99C4E1', '#C0E2F0')
+#permafrost_palette2 = c('#88419d', '#8c6bb1','#8c96c6')
+#permafrost_palette3 = c('#c994c7','#d4b9da', '#f1eef6') 
+#permafrost_palette4 = c('#4b2665', '#8774ab', '#d4b9da')
+```
+
+```{r}
+brltnd_palette = c('#4a6741', '#3d3021')
+```
+
+# Maps
+
+## Zoom Level
+
+```{r}
+#### zoom to kamchatka, different projection ####
+
+zoom_to <- c(180, 83)  # ~ center of Kamchatka
+zoom_level <- 2.25
+
+# Lambert azimuthal equal-area projection around center of interest
+target_crs <- polarProj#sprintf('+proj=laea +lon_0=%f +lat_0=%f', zoom_to[1], zoom_to[2])
+
+
+C <- 40075016.686   # ~ circumference of Earth in meters
+x_span <- C / 2^(zoom_level+.1)
+y_span <- C / 2^(zoom_level+.3)   # also sets aspect ratio
+
+zoom_to_xy <- st_transform(st_sfc(st_point(zoom_to), crs = 4326), crs = target_crs)
+zoom_to_xy
+
+disp_window <- st_sfc(st_point(st_coordinates(zoom_to_xy - c(x_span / 2, y_span / 2))),
+                      st_point(st_coordinates(zoom_to_xy + c(x_span / 2, y_span / 2))),
+                      crs = target_crs)
+```
+
+# Build Overview map by Ecozone
+
+## with Resolve Ecozones
+
+```{r}
+( ecozoneMap = ggplot() +
+      geom_sf(data = nh_pp, fill = "#F9F6EE", colour="#F9F6EE") +
+    geom_sf(data = resolveAllpp, fill = "#A9AB9D", color= "#F9F6EE") +
+    geom_sf(data = resolve1_pp, aes(fill = ECO_NAME), color= "#F9F6EE", alpha=.9) +
+ 
+  geom_sf(data=artic_pp, fill=NA, colour = '#3d3021', lwd=.5, linetype="dashed") +
+    scale_fill_manual(values = ecoPalette, name = "Ecozones") +
+    #scale_color_manual(values = ecoPalette, name = "Ecozones") +
+  
+    labs(x="", y="") +
+
+  coord_sf(xlim = st_coordinates(disp_window)[,'X'], ylim = st_coordinates(disp_window)[,'Y']) +
+ theme(panel.grid.major = element_line(color = gray(0.5), linetype = "solid", size = 0.3), 
+        panel.background = element_rect(fill = "#f0f8ff"),
+        plot.margin=unit(c(0,0,0,0), "mm"),
+        legend.key=element_blank(),
+        legend.position = "none",        
+        legend.text=element_text(size=0),
+        legend.title=element_text(size=0)) +
+ 
+  guides(fill=guide_legend( title.position = "top", ncol=3,byrow=TRUE))
+  
+)
+```
+
+```{r eval=FALSE, include=FALSE}
+ggsave("../figures/2024-02-04_EcozoneResMap.png", plot = ecozoneMap, units = c("in"), dpi=600, bg = "white" )
+```
+
+### Map Legend
+
+```{r}
+( resEcoLegendBottom = ggplot() +
+       geom_sf(data = nh_pp, fill = "#F9F6EE", colour="#F9F6EE") +
+    geom_sf(data = resolveAllpp, fill = "#A9AB9D", color= "#F9F6EE") +
+    geom_sf(data = resolve1_pp, aes(fill = ECO_NAME), color= "#F9F6EE", alpha=.9) +
+  geom_sf(data=artic_pp, fill=NA, colour = '#3d3021', lwd=.5, linetype="dashed") +
+    scale_fill_manual(values = ecoPalette, name = "Ecozones") +
+    #scale_color_manual(values = ecoPalette, name = "Ecozones") +
+  
+    labs(x="", y="") +
+
+  coord_sf(xlim = st_coordinates(disp_window)[,'X'], ylim = st_coordinates(disp_window)[,'Y']) +
+ theme(panel.grid.major = element_line(color = gray(0.5), linetype = "solid", size = 0.3), 
+        panel.background = element_rect(fill = "#f0f8ff"),
+        plot.margin=unit(c(0,0,0,0), "mm")) + 
+  theme(legend.position = "bottom",
+         legend.text=element_text(size=11),
+        legend.margin = margin(0, 0, 0, 0),
+        legend.title=element_text(size=12),
+         legend.key=element_blank(),
+        legend.key.size = unit(5, 'mm'),
+        axis.title.x = element_blank(), 
+        axis.title.y = element_blank()) +
+  guides(color = guide_legend(title.position = "top", ncol=2,bycol=TRUE, override.aes = list(size = 4)),
+         fill = guide_legend(title.position = "top", ncol=2,bycol=TRUE, override.aes = list(size = 4)))
+)
+```
+```{r}
+legendBottom = cowplot::get_legend(resEcoLegendBottom)
+```
+
+```{r eval=FALSE, include=FALSE}
+ggsave("../figures/EcozoneLegendBottom.png", plot = legendBottom, dpi = 600,  bg='white')
+```
+```{r eval=FALSE, include=FALSE}
+ggsave("../figures/2024-02-04_EcozoneMapAndLegendBottom.png", plot = resEcoLegendBottom, dpi = 600,  bg='white')
+```
+
+```{r eval=FALSE, include=FALSE}
+( resEcoLegendRight = ggplot() +
+      geom_sf(data = nh_pp, fill = "#F9F6EE", colour="#F9F6EE") +
+    geom_sf(data = resolveAllpp, fill = "#F9F6EE", color= "#A9AB9D", lwd = 0.2,) +
+    geom_sf(data = resolve1_pp, aes(fill = ECO_NAME), lwd = 0, alpha=.9) +
+ 
+  geom_sf(data=artic_pp, fill=NA, colour = '#3d3021', lwd=.5, linetype="dashed") +
+    scale_fill_manual(values = ecoPalette, name = "Ecozones") +
+    #scale_color_manual(values = ecoPalette, name = "Ecozones") +
+  
+    labs(x="", y="") +
+
+  coord_sf(xlim = st_coordinates(disp_window)[,'X'], ylim = st_coordinates(disp_window)[,'Y']) +
+ theme(panel.grid.major = element_line(color = gray(0.5), linetype = "solid", size = 0.3), 
+        panel.background = element_rect(fill = "#f0f8ff"),
+        plot.margin=unit(c(0,0,0,0), "mm")) +  # t,r,b,l 
+  theme(legend.position = "right",
+         legend.text=element_text(size=8),
+        legend.margin = margin(0, 0, 0, 0),
+        legend.title=element_text(size=9),
+         legend.key=element_blank(),
+        legend.key.size = unit(5, 'mm'),
+        axis.title.x = element_blank(), 
+        axis.title.y = element_blank()) 
+)
+
+```
+
++
+  guides(color = guide_legend(title.position = "top", ncol=4,bycol=TRUE, override.aes = list(size = 4)),
+         fill = guide_legend(title.position = "top", ncol=2,bycol=TRUE, override.aes = list(size = 4))) 
+
+```{r}
+legendRight = cowplot::get_legend(resEcoLegendRight)
+```
+
+```{r eval=FALSE, include=FALSE}
+ggsave("../figures/EcozoneLegendRight.png", plot = resEcoLegendRight, dpi = 600,  bg='white')
+```
+
+# Frequency by Ecozone
+
+```{r eval=FALSE, fig.height=6, fig.width=6, include=FALSE}
+( histEco = ggplot(datacubePred, aes(x = predDepth, fill = resName)) +
+geom_histogram(stat = "count") +
+  facet_wrap(~resName, scales = "free", nrow = 4) +
+   scale_fill_manual(values = ecoPalette) +
+  #scale_y_continuous(expand = expand_scale(mult = c(0, 0.05))) +
+  hist_theme +
+    theme(strip.background = element_rect(color="white", fill="white", size=1.5, linetype="solid"),
+          strip.text.x = element_text(size = 5), 
+          panel.spacing = unit(0,'lines')) +
+  labs(x='Depth (cm)', y='Count') +
+  scale_x_continuous(expand=c(0,0)) +
+  scale_y_continuous(expand=c(0,0)) +
+  theme(panel.spacing = unit(.5, "lines"))
+)
+  #geom_rug(aes(predDepth, y = NULL))
+```
+
+```{r eval=FALSE, include=FALSE}
+ggsave("../figures/HistogramPredDepthEcozone.png", plot = histEco, width = 6, height =6, units = c("in"), dpi=600, bg = "white" )
+```
+
+## Joint frequency
+| Ecozone                               |  Hexcode   |
+|:-------------------------------------:|:----------:|
+| "Arctic foothills tundra"             | '#ff7f00'  |
+| "Beringia lowland tundra"             | '#1f78b4'  |
+| "Beringia upland tundra"              | "#00bfa0"  |
+| "Chukchi Peninsula tundra"            | '#fb9a99'  |
+| "East Siberian taiga"                 | '#e31a1c'  |
+| "Interior Alaska-Yukon lowland taiga" | '#33a02c'  | 
+| "Interior Yukon-Alaska alpine tundra" | '#a6cee3'  |
+| "Muskwa-Slave Lake taiga"             | "#dc0ab4"  |
+| "Northeast Siberian taiga"            | '#b2df8a'  |
+| "Northern Canadian Shield taiga"      | '#bebada'  |
+| "Northwest Territories taiga"         | '#CC6677'  |
+| "Yamal-Gydan tundra"                  | '#b15928'  |
+
+```{r}
+head(datacubePred)
+datacubePred$distur[datacubePred$distur == "unburned"] <- "Unburned"
+datacubePred$distur[datacubePred$distur == "burned"] <- "Burned"
+datacubePred$resBiome[datacubePred$resBiomeName == "Boreal Forests/Taiga"] <- "Boreal"
+datacubePred$resBiome[datacubePred$resBiomeName == "Tundra"] <- "Tundra"
+( northAmer = datacubePred %>% filter(Continent=="North America") )
+( asia = datacubePred %>% filter(Continent=="Asia") )
+```
+
+
+
+```{r}
+
+( plot_na_combDis = ggplot(northAmer, aes(estDepth, colour = resName, lintype=distur)) +
+  geom_freqpoly(binwidth = 10, aes(linetype = distur)) +
+  facet_wrap(vars(resBiome),   scales = "free") +
+    scale_linetype_manual(values=c("solid", "dashed")) +
+   scale_color_manual(values = c('#ff7f00', '#1f78b4', "#00bfa0", '#33a02c', "#dc0ab4", '#bebada', '#CC6677'), name="Ecozones") +
+  comp_theme +
+  theme(strip.background = element_rect(color="white", fill="white", size=1.5, linetype="solid"),
+          strip.text.x = element_text(size = 8), 
+          panel.spacing = unit(0,'lines')) +
+  labs(x='Active layer thickness (cm)', y='Count') +
+  scale_x_continuous(expand=c(0,0)) +
+  scale_y_sqrt() +
+  #scale_y_continuous(expand=c(0,0)) +
+  theme(panel.spacing = unit(.5, "lines"))
+)
+```
+
+
+
+```{r}
+( plot_asia_combDis =  ggplot(asia, aes(estDepth, colour = resName)) +
+  geom_freqpoly(binwidth = 10, aes(linetype = distur)) +
+  facet_wrap(vars(resBiome), scales = "free") +
+    scale_linetype_manual(values=c("solid", "dashed")) +
+   scale_color_manual(values = c('#fb9a99','#e31a1c', '#b2df8a', '#b15928'), name="Ecozones") +
+  comp_theme +
+  theme(strip.background = element_rect(color="white", fill="white", size=1.5, linetype="solid"),
+          strip.text.x = element_text(size = 8), 
+          panel.spacing = unit(0,'lines')) +
+  labs(x='Active layer thickness (cm)', y='Count') +
+  scale_x_continuous(expand=c(0,0)) +
+  scale_y_sqrt() +
+  #scale_y_continuous(expand=c(0,0)) +
+  theme(panel.spacing = unit(.5, "lines"))
+)
+```
+
+
+ 
+
+# Grid
+
+### Grid map with legend Bottom
+
+
+
+```{r}
+( leftSide_combineDist = cowplot::plot_grid(plot_na_combDis, plot_asia_combDis, labels=c("A", "B"), ncol=1) )
+```
+
+
+
+```{r}
+( DataDistributuionMap_CombDist = ggdraw(xlim = c(0, 9), ylim = c(0, 5)) +
+    draw_plot(leftSide_combineDist, x = 0, y = 0, width = 5, height = 5) + 
+  draw_image("../figures/2024-02-04_EcozoneMapAndLegendBottom.png", scale = 1.05, x = 5.05, y = .6, width = 4, height = 4) +
+  draw_plot_label(
+  label="C",
+  x = 5.4,
+  y = 5.01)
+)
+```
+
+
+
+
+### Save Image
+
+
+
+```{r eval=FALSE, include=FALSE}
+ggsave("../figures/2024-02-04_EcozoneDataDistributionDisturbMap.png", plot = DataDistributuionMap_CombDist, dpi = 600, width = 8, height = 4.5, bg='white')
+```
+

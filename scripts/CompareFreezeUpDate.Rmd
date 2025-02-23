@@ -1,0 +1,130 @@
+---
+title: "Compare freeze up date"
+author: "Anna Talucci"
+date: "2025-01-14"
+output: html_document
+---
+
+# Overview
+
+# Library
+```{r}
+library(tidyverse)
+library(terra)
+library(sf)
+```
+
+
+# Data
+
+```{r}
+firealt =read_csv("../data/dataset/FireALTdataset.csv")
+```
+
+```{r}
+r1 = rast("../data/meanFreezeupAK/dof_cru_TS31_historical_2000_2009.tif")
+```
+
+```{r}
+r2 = rast("../data/meanFreezeupAK/dot_cru_TS31_historical_2000_2009.tif")
+```
+
+```{r}
+r3 = rast("../data/meanFreezeupAK/logs_cru_TS31_historical_2000_2009.tif")
+```
+
+# View raster info
+
+```{r}
+r1
+r2
+r3
+```
+
+# Plot rasters
+
+```{r}
+plot(r1)
+```
+
+```{r}
+plot(r2)
+```
+
+```{r}
+plot(r3)
+```
+
+# Fire Alt data to point
+
+## Convert to sf object
+
+```{r}
+df_to_sf <- function(x){
+  st_as_sf(x, coords = c("lon", "lat"), crs= 4326, remove=FALSE)
+}
+```
+
+```{r}
+firealt
+```
+
+```{r}
+( firealt1 = firealt %>%
+    df_to_sf() %>%
+    filter(year %in% 2000:2009) #%>%
+    #filter(MAS_phase2_2024_fbfm_merged_3310==1)
+  )
+```
+
+```{r}
+( firealt2 = st_transform(firealt1, crs=3338) )
+```
+```{r}
+(firealt3 = firealt2 %>% mutate(ID = row_number()))
+```
+
+
+# Extract values from rasters
+
+```{r}
+( extr1 = extract(r1, firealt3, xy=TRUE) )
+```
+
+```{r}
+( extr2 = extract(r2, firealt3, xy=TRUE) )
+```
+
+```{r}
+( extr3 = extract(r3, firealt3, xy=TRUE) )
+```
+
+```{r}
+( dofCompare = firealt3 %>% 
+  st_drop_geometry() %>%
+  full_join(., extr1, by=c("ID")) %>%
+  dplyr::select(-x, -y) %>%
+  mutate(diff_dof = estDoy - dof_cru_TS31_historical_2000_2009) )
+
+
+```
+
+```{r}
+( siteplot = dofCompare %>% 
+  group_by(submitNm, distur, siteId, plotId, fireYr, year, month, day, lat, lon) %>%
+  summarize(diff_dof_mean = mean(diff_dof),
+            diff_dof_min = min(diff_dof),
+            diff_dof_max = max(diff_dof),
+            diff_dof_median = median(diff_dof)) )
+```
+
+```{r}
+siteplot %>% 
+  ungroup() %>%
+  summarize(diff_dof_mean = mean(diff_dof_mean),
+            diff_dof_min = min(diff_dof_min),
+            diff_dof_max = max(diff_dof_max),
+            diff_dof_median = median(diff_dof_median)) 
+```
+
+Negative values indicate that the estDoy I am calculating is occur before the decadal mean day of freezing.

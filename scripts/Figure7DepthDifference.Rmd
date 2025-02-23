@@ -1,0 +1,229 @@
+---
+title: "Figure Depth Difference"
+author: "Anna Talucci"
+date: "2024-09-16"
+output: html_document
+---
+
+# clear environment
+```{r}
+rm(list=ls())
+```
+
+# Overview
+Figures looking at measured versus predicted
+
+
+# Packages
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(ggpubr)
+library(ggnewscale)
+library(ggthemes)
+```
+
+# Plot themes
+```{r}
+comp_theme = theme_bw() + theme(legend.position = "bottom") +  
+  theme(panel.grid.major = element_blank()) +
+    theme(axis.title.y = element_text(size = 11, hjust = 0.5, vjust = 1.1),
+        axis.text.x = element_text(size = 10, color = "black"),
+        axis.text.y = element_text(size = 10, color = "black"))
+```
+
+# Data
+
+## Predicted measurements
+
+```{r}
+pairs = read_csv("../data/PCNFINAL/FireALTEstimatedPairsBurnedUnburned.csv")
+```
+
+```{r}
+pairs
+```
+
+# Depth difference and percent difference
+
+## Split burned/unburned 
+
+### By Biome
+
+```{r}
+( unburnedBiome = pairs %>% 
+    drop_na(paired) %>%
+    filter(distur =="unburned") %>%
+    dplyr::select(submitNm, distur, paired, year, tsf, biome, permaExtent, estDepth) %>%
+  rename(estDepth_unburned = estDepth, disturUnburn = distur)
+)
+```
+
+```{r}
+( burnedBiome = pairs %>% 
+    drop_na(paired) %>%
+    filter(distur =="burned") %>%
+    dplyr::select(submitNm:tsfClass, biome, permaExtent, estDepth) %>%
+  rename(estDepth_burned = estDepth, disturBurn = distur)
+)
+```
+
+
+
+
+
+## Join burned to Unburned
+
+### biome Depth difference
+(a - b)) / ((a + b) / 2) * 100%
+
+```{r}
+( joined_data <- inner_join(burnedBiome, unburnedBiome, by = "paired") )
+```
+
+```{r}
+( pairing = joined_data %>% 
+  select(paired, tsfClass, biome.x, permaExtent.x, estDepth_burned, estDepth_unburned) %>%
+  rename(biome=biome.x, permaExtent = permaExtent.x) )
+```
+
+
+```{r}
+( depthDiffBiome = pairing %>%
+  
+  mutate(depthDifference = estDepth_unburned-estDepth_burned,
+         percentDifference = (estDepth_unburned-estDepth_burned)/((estDepth_unburned + estDepth_burned)/2) * 100) %>%
+    mutate(permaName = ifelse(permaExtent=="C", "Continuous",
+                              ifelse(permaExtent=="D", "Discontinuous", "Sporadic"))) %>%
+    mutate(biomeRename = ifelse(biome=="tundra", "Tundra", "Boreal"))
+)
+```
+
+```{r}
+depthDiffBiome$tsfClass = factor(depthDiffBiome$tsfClass, levels = c( "unburned", "0-3", "4-10", "11-20", "21-40", ">40"))
+```
+
+```{r}
+depthDiffBiome %>% 
+  group_by(biomeRename, permaName, tsfClass) %>%
+  summarise(gtZero = sum(depthDifference > 0, na.rm = TRUE),
+            ltZero = sum(depthDifference < 0, na.rm = TRUE))
+```
+
+
+
+      
+
+
+# Figures
+
+## plots By Biome
+```{r}
+permafrost_palette = c('#71A6D1', '#99C4E1', '#C0E2F0')
+permafrost_palette2 = c('#88419d', '#8c6bb1','#8c96c6')
+permafrost_palette3 = c('#c994c7','#d4b9da', '#f1eef6') 
+permafrost_palette4 = c('#4b2665', '#8774ab', '#d4b9da')
+```
+
+```{r}
+( plotDepthDiffBiomeFreeAxis = ggplot(depthDiffBiome, aes(x = tsfClass, y=depthDifference, color=tsfClass)) +
+  geom_hline(yintercept=0, color="gray", size = 3, alpha = .5) + 
+   geom_boxplot( linewidth = .3, outlier.shape = NA) + #, size = 3, shape = 21
+  geom_jitter( size = 1, shape = 21) +
+      scale_color_manual(values=c('#082a54','#082a54','#082a54','#082a54','#082a54'), name="") +
+    stat_summary(fun=mean, geom="point", shape=23, size=2, color="#e02b35") +
+  #scale_y_reverse() +
+    #geom_errorbar(aes(ymin = ymin,ymax = ymax)) +
+  labs(x="Time since fire class (years)", y="Difference in depth (cm)") +
+     #facet_grid(vars(resBiome), vars(permaExtent), scales="free") +
+  facet_wrap(~biomeRename + permaName, scales = "free") +
+  comp_theme +
+    theme(legend.position = "none",
+          axis.text.y = element_text(size=5),
+          axis.text.x = element_text(size=5, angle=45),
+          strip.background = element_rect( color="white", fill="white", size=1.5, linetype="solid" )) +
+    theme(strip.text.x = element_text(size = 6))
+)
+```
+
+
+```{r}
+( plotDepthDiffBiomeStaticYaxis = depthDiffBiome %>% filter(depthDifference>-100) %>% 
+    ggplot(., aes(x = tsfClass, y=depthDifference, color=tsfClass)) +
+  geom_hline(yintercept=0, color="gray", size = 3, alpha = .5) + 
+   geom_boxplot( linewidth = .3, outlier.shape = NA) + #, size = 3, shape = 21
+  geom_jitter( size = 1, shape = 21) +
+      scale_color_manual(values=c('#082a54','#082a54','#082a54','#082a54','#082a54'), name="") +
+    stat_summary(fun=mean, geom="point", shape=23, size=2, color="#e02b35") +
+  #scale_y_reverse() +
+    #geom_errorbar(aes(ymin = ymin,ymax = ymax)) +
+  labs(x="Time since fire class (years)", y="Difference in depth (cm)") +
+     #facet_grid(vars(resBiome), vars(permaExtent), scales="free") +
+  facet_wrap(~biomeRename + permaName) +
+  comp_theme +
+    theme(legend.position = "none",
+          axis.text.y = element_text(size=5),
+          axis.text.x = element_text(size=5, angle=45),
+          strip.background = element_rect( color="white", fill="white", size=1.5, linetype="solid" )) +
+    theme(strip.text.x = element_text(size = 6))
+)
+```
+```{r}
+( plotPercentDiffBiome = depthDiffBiome %>% 
+    ggplot(., aes(x = tsfClass, y=percentDifference, color=tsfClass)) +
+  geom_hline(yintercept=0, color="gray", size = 3, alpha = .5) + 
+   geom_boxplot( linewidth = .3, outlier.shape = NA) + #, size = 3, shape = 21
+  geom_jitter( size = 1, shape = 21) +
+     scale_color_manual(values=c('#082a54','#082a54','#082a54','#082a54','#082a54'), name="") +
+    stat_summary(fun=mean, geom="point", shape=23, size=2, color="#e02b35") +
+  #scale_y_reverse() +
+    #geom_errorbar(aes(ymin = ymin,ymax = ymax)) +
+  labs(x="Time since fire class (years)", y="Percent difference") +
+     #facet_grid(vars(resBiome), vars(permaExtent), scales="free") +
+  facet_wrap(~biomeRename + permaName) +
+    ylim(-110, 60) +
+  comp_theme +
+    theme(legend.position = "none",
+          axis.text.y = element_text(size=5),
+          axis.text.x = element_text(size=5, angle=45),
+          strip.background = element_rect( color="white", fill="white", size=1.5, linetype="solid" )) +
+    theme(strip.text.x = element_text(size = 6))
+)
+```
+
+```{r}
+( plotPercentDiffBiomeOutliers = depthDiffBiome %>% 
+    ggplot(., aes(x = tsfClass, y=percentDifference, color=tsfClass)) +
+  geom_hline(yintercept=0, color="gray", size = 3, alpha = .5) + 
+   geom_boxplot( linewidth = .3, outlier.shape = NA) + #, size = 3, shape = 21
+  geom_jitter( size = 1, shape = 21) +
+     scale_color_manual(values=c('#082a54','#082a54','#082a54','#082a54','#082a54'), name="") +
+    stat_summary(fun=mean, geom="point", shape=23, size=2, color="#e02b35") +
+  #scale_y_reverse() +
+    #geom_errorbar(aes(ymin = ymin,ymax = ymax)) +
+  labs(x="Time since fire class (years)", y="Percent difference") +
+     #facet_grid(vars(resBiome), vars(permaExtent), scales="free") +
+  facet_wrap(~biomeRename + permaName) +
+   # ylim(-110, 60) +
+  comp_theme +
+    theme(legend.position = "none",
+          axis.text.y = element_text(size=5),
+          axis.text.x = element_text(size=5, angle=45),
+          strip.background = element_rect( color="white", fill="white", size=1.5, linetype="solid" )) +
+    theme(strip.text.x = element_text(size = 6))
+)
+```
+
+
+# Save Figures
+```{r eval=FALSE, include=FALSE}
+ggsave("../figures/2024-02-04_DifferenceSiteDepthTsfBiomeFreeAxis.png", plot = plotDepthDiffBiomeFreeAxis,  width = 6, height =5, units = c("in"), dpi=600, bg = "white" )
+
+ggsave("../figures/2024-02-04_DifferenceDepthTsfBiomeSameAxisoutliers.png", plot = plotDepthDiffBiomeStaticYaxis,  width = 6, height =5, units = c("in"), dpi=600, bg = "white" )
+
+ggsave("../figures/2024-02-04_DifferencePercentTsfBiomeSameAxisDropoutliers.png", plot = plotPercentDiffBiome,  width = 6, height =5, units = c("in"), dpi=600, bg = "white" )
+
+ggsave("../figures/2024-02-04_DifferencePercentTsfBiomeSameAxisOutliers.png", plot = plotPercentDiffBiomeOutliers,  width = 6, height =5, units = c("in"), dpi=600, bg = "white" )
+```
+
