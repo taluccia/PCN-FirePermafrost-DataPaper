@@ -317,7 +317,7 @@ MapBottomLegendResolve = ggdraw(xlim = c(0, 6), ylim = c(0, 6)) +
 ### Save Image
 
 ```{r eval=FALSE, include=FALSE}
-ggsave("../figures/2024-02-04_PCNMapOverviewBottomLegendResolve.png", plot = MapBottomLegendResolve, dpi = 600, width = 6, height = 6, bg='white')
+ggsave("../figures/2024-02-23_PCNMapOverviewBottomLegendResolve.png", plot = MapBottomLegendResolve, dpi = 600, width = 6, height = 6, bg='white')
 ```
 
 
